@@ -15,6 +15,8 @@
 // limitations under the License.
 
 // File I/O for logs.
+//
+// 日志文件 I/O
 
 package klog
 
@@ -30,9 +32,13 @@ import (
 )
 
 // MaxSize is the maximum size of a log file in bytes.
+//
+// MaxSize 是一个日志文件的最大字节数。
 var MaxSize uint64 = 1024 * 1024 * 1800
 
 // logDirs lists the candidate directories for new log files.
+//
+// logDirs 列出新日志文件的候选目录。
 var logDirs []string
 
 func createLogDirs() {

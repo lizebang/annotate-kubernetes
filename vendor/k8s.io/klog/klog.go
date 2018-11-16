@@ -68,6 +68,55 @@
 //			-vmodule=gopher*=3
 //		sets the V level to 3 in all Go files whose names begin "gopher".
 //
+// klog 包实现了类似 Google 内部 C++ INFO/ERROR/V 方案对日志。
+// 它提供了函数 Info、Warning、Error、Fatel，以及诸如 Infof 的格式化版本。
+// 它还提供了由 -v 和 -vmodule=file=2 标志控制的 V-style 日志。
+//
+// 基础示例：
+//
+//	glog.Info("Prepare to repel boarders")
+//
+//	glog.Fatalf("Initialization failed: %s", err)
+//
+// 有关这些示例的说明，请查看 V 函数的文档。
+//
+//	if glog.V(2) {
+//		glog.Info("Starting transaction...")
+//	}
+//
+//	glog.V(2).Infoln("Processed", nItems, "elements")
+//
+// 日志是被缓冲的，并且周期性的使用 Flush 写入。
+// 程序应该在退出之前调用 Flush 以保证写入所有日志。
+//
+// 默认情况下，所有日志都写入临时目录中的文件。
+// 此包提供了几个可以改变此默认操作的标志。
+// 因此，flag.Parse 必须在所有日志完全前调用。
+//
+//	-logtostderr=false
+//		日志被写入到标准错误输出而不是文件。
+//	-alsologtostderr=false
+//		日志被同时写入到标准错误输出和文件。
+//	-stderrthreshold=ERROR
+//		日志事件处于此级别或以上时同时写入到标准输出和文件。
+//	-log_dir=""
+//		日志文件将被写入到此目录而不是默认的临时目录。
+//
+// 其他标志提供了调试帮助。
+//
+//	-log_backtrace_at=""
+//		当设置某文件的某行持有日志声明，
+//		例如
+//			-log_backtrace_at=gopherflakes.go:234
+//		每当执行触发此声明时，栈追踪数据将被写入到 Info 日志。（与 -vmodule 不同，
+//		".go" 必须被指明。）
+//	-v=0
+//		在指定级别启用 V-级 日志。
+//	-vmodule=""
+//		参数的语法是一个类似 pattern=N 的逗号分隔的列表，其中 pattern 是文件名
+//		（除去 ".go" 后缀）或 "glob" 模式，N 是 V 到等级。例如：
+//			-vmodule=gopher*=3
+//		将名称以 "gopher" 开头的所有 Go 文件 V 级别设置为 3。
 package klog
 
 import (
@@ -92,11 +141,19 @@ import (
 // the flag.Value interface. The -stderrthreshold flag is of type severity and
 // should be modified only through the flag.Value interface. The values match
 // the corresponding constants in C++.
+//
+// severity 标识出日志的类别：info、warning 等。
+// 它还实现 flag.Value 接口。
+// -stderrthreshold 标志是 severity 类型，并且应该只能通过 flag.Value 接口修改。
+// 值与 C++ 中的对应常量相匹配。
 type severity int32 // sync/atomic int32
 
 // These constants identify the log levels in order of increasing severity.
 // A message written to a high-severity log file is also written to each
 // lower-severity log file.
+//
+// 这些常量按严重性递增的顺序标示日志级别。
+// 每一个写入高严重性日志文件对消息也会被写入到每一个低严重性日志文件中。
 const (
 	infoLog severity = iota
 	warningLog
@@ -115,29 +172,41 @@ var severityName = []string{
 }
 
 // get returns the value of the severity.
+//
+// get 返回 severity 的值。
 func (s *severity) get() severity {
 	return severity(atomic.LoadInt32((*int32)(s)))
 }
 
 // set sets the value of the severity.
+//
+// set 设置 severity 的值。
 func (s *severity) set(val severity) {
 	atomic.StoreInt32((*int32)(s), int32(val))
 }
 
 // String is part of the flag.Value interface.
+//
+// String 是 flag.Value 接口的一部分。
 func (s *severity) String() string {
 	return strconv.FormatInt(int64(*s), 10)
 }
 
 // Get is part of the flag.Value interface.
+//
+// Get 是 flag.Value 接口的一部分。
 func (s *severity) Get() interface{} {
 	return *s
 }
 
 // Set is part of the flag.Value interface.
+//
+// Set flag.Value 接口的一部分。
 func (s *severity) Set(value string) error {
 	var threshold severity
 	// Is it a known name?
+	//
+	// 它是不是已知级别的名称。
 	if v, ok := severityByName(value); ok {
 		threshold = v
 	} else {
@@ -162,23 +231,31 @@ func severityByName(s string) (severity, bool) {
 }
 
 // OutputStats tracks the number of output lines and bytes written.
+//
+// OutputStats 追踪写入的行号和字节数。
 type OutputStats struct {
 	lines int64
 	bytes int64
 }
 
 // Lines returns the number of lines written.
+//
+// Lines 返回写入的行号。
 func (s *OutputStats) Lines() int64 {
 	return atomic.LoadInt64(&s.lines)
 }
 
 // Bytes returns the number of bytes written.
+//
+// Bytes 返回写入的字节数。
 func (s *OutputStats) Bytes() int64 {
 	return atomic.LoadInt64(&s.bytes)
 }
 
 // Stats tracks the number of lines of output and number of bytes
 // per severity level. Values must be read with atomic.LoadInt64.
+//
+// Stats 跟踪每个严重级别的行号和字节数。值必须通过 atomic.LoadInt64 读取。
 var Stats struct {
 	Info, Warning, Error OutputStats
 }
@@ -201,6 +278,8 @@ var severityStats = [numSeverity]*OutputStats{
 // Level specifies a level of verbosity for V logs. *Level implements
 // flag.Value; the -v flag is of type Level and should be modified
 // only through the flag.Value interface.
+//
+// Level
 type Level int32
 
 // get returns the value of the Level.
@@ -397,6 +476,8 @@ type flushSyncWriter interface {
 
 func init() {
 	// Default stderrThreshold is ERROR.
+	//
+	// 默认的 stderrThreshold 等级为 ERROR。
 	logging.stderrThreshold = errorLog
 
 	logging.setVState(0, nil, false)
@@ -404,6 +485,8 @@ func init() {
 }
 
 // InitFlags is for explicitly initializing the flags
+//
+// InitFlags 用于显式初始化标志
 func InitFlags(flagset *flag.FlagSet) {
 	if flagset == nil {
 		flagset = flag.CommandLine
@@ -420,15 +503,21 @@ func InitFlags(flagset *flag.FlagSet) {
 }
 
 // Flush flushes all pending log I/O.
+//
+// Flush 刷新所有挂起的日志 I/O。
 func Flush() {
 	logging.lockAndFlushAll()
 }
 
 // loggingT collects all the global state of the logging setup.
+//
+// loggingT 包含日志设置的所有全局状态。
 type loggingT struct {
 	// Boolean flags. Not handled atomically because the flag.Value interface
 	// does not let us avoid the =true, and that shorthand is necessary for
 	// compatibility. TODO: does this matter enough to fix? Seems unlikely.
+	//
+	// TS:
 	toStderr     bool // The -logtostderr flag.
 	alsoToStderr bool // The -alsologtostderr flag.
 
@@ -486,6 +575,8 @@ var logging loggingT
 
 // setVState sets a consistent state for V logging.
 // l.mu is held.
+//
+// setVState
 func (l *loggingT) setVState(verbosity Level, filter []modulePat, setFilter bool) {
 	// Turn verbosity off so V will not fire while we are in transition.
 	logging.verbosity.set(0)
@@ -937,6 +1028,9 @@ func (l *loggingT) createFiles(sev severity) error {
 const flushInterval = 30 * time.Second
 
 // flushDaemon periodically flushes the log file buffers.
+//
+// flushDaemon 定期刷新日志文件缓冲区。
+// 刷新间隔时间 flushInterval = 30 * time.Second
 func (l *loggingT) flushDaemon() {
 	for range time.NewTicker(flushInterval).C {
 		l.lockAndFlushAll()
@@ -944,6 +1038,8 @@ func (l *loggingT) flushDaemon() {
 }
 
 // lockAndFlushAll is like flushAll but locks l.mu first.
+//
+// TS: lockAndFlushAll 同 flushAll 一样，但是会先对 l.mu 上锁。
 func (l *loggingT) lockAndFlushAll() {
 	l.mu.Lock()
 	l.flushAll()
@@ -952,13 +1048,20 @@ func (l *loggingT) lockAndFlushAll() {
 
 // flushAll flushes all the logs and attempts to "sync" their data to disk.
 // l.mu is held.
+//
+// flushAll 刷新所有日志并尝试将其数据同步到磁盘。
+// l.mu 已被上锁。
 func (l *loggingT) flushAll() {
 	// Flush from fatal down, in case there's trouble flushing.
+	//
+	//
 	for s := fatalLog; s >= infoLog; s-- {
 		file := l.file[s]
 		if file != nil {
+			// 忽略错误
 			file.Flush() // ignore error
-			file.Sync()  // ignore error
+			// 忽略错误
+			file.Sync() // ignore error
 		}
 	}
 }

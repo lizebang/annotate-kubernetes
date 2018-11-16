@@ -28,6 +28,8 @@ import (
 )
 
 // Run creates and executes new kubeadm command
+//
+// TS: Run 创建并执行新的 kubeadm 命令
 func Run() error {
 	pflag.CommandLine.SetNormalizeFunc(utilflag.WordSepNormalizeFunc)
 	pflag.CommandLine.AddGoFlagSet(flag.CommandLine)
@@ -35,6 +37,9 @@ func Run() error {
 	pflag.Set("logtostderr", "true")
 	// We do not want these flags to show up in --help
 	// These MarkHidden calls must be after the lines above
+	//
+	// 我们不希望这些标志在 --help 中显示
+	//
 	pflag.CommandLine.MarkHidden("version")
 	pflag.CommandLine.MarkHidden("log-flush-frequency")
 	pflag.CommandLine.MarkHidden("alsologtostderr")
