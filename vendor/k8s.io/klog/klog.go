@@ -98,7 +98,7 @@
 //	-alsologtostderr=false
 //		日志被同时写入到标准错误输出和文件。
 //	-stderrthreshold=ERROR
-//		日志事件处于此级别或以上时同时写入到标准输出和文件。
+//		日志事件处于此等级或以上时同时写入到标准输出和文件。
 //	-log_dir=""
 //		日志文件将被写入到此目录而不是默认的临时目录。
 //
@@ -111,12 +111,12 @@
 //		每当执行触发此声明时，栈追踪数据将被写入到 Info 日志。（与 -vmodule 不同，
 //		".go" 必须被指明。）
 //	-v=0
-//		在指定级别启用 V-级 日志。
+//		在指定等级启用 V-级 日志。
 //	-vmodule=""
 //		参数的语法是一个类似 pattern=N 的逗号分隔的列表，其中 pattern 是文件名
-//		（除去 ".go" 后缀）或 "glob" 模式，N 是 V 到等级。例如：
+//		（除去 ".go" 后缀）或 "glob" 模式，N 是 V 的等级。例如：
 //			-vmodule=gopher*=3
-//		将名称以 "gopher" 开头的所有 Go 文件 V 级别设置为 3。
+//		将名称以 "gopher" 开头的所有 Go 文件 V 的等级设置为 3。
 package klog
 
 import (
@@ -152,7 +152,7 @@ type severity int32 // sync/atomic int32
 // A message written to a high-severity log file is also written to each
 // lower-severity log file.
 //
-// 这些常量按严重性递增的顺序标示日志级别。
+// 这些常量是按严重性递增的顺序标示日志等级。
 // 每一个写入高严重性日志文件对消息也会被写入到每一个低严重性日志文件中。
 const (
 	infoLog severity = iota
@@ -206,7 +206,7 @@ func (s *severity) Set(value string) error {
 	var threshold severity
 	// Is it a known name?
 	//
-	// 它是不是已知级别的名称。
+	// 它是否为已知等级的名称。
 	if v, ok := severityByName(value); ok {
 		threshold = v
 	} else {
@@ -255,7 +255,8 @@ func (s *OutputStats) Bytes() int64 {
 // Stats tracks the number of lines of output and number of bytes
 // per severity level. Values must be read with atomic.LoadInt64.
 //
-// Stats 跟踪每个严重级别的行号和字节数。值必须通过 atomic.LoadInt64 读取。
+// Stats 跟踪每个日志严重等级的行号和字节数。值必须通过 atomic.LoadInt64 读取。
+// IMP: 匿名结构体，类似于注释，且保持灵活性，便于修改。
 var Stats struct {
 	Info, Warning, Error OutputStats
 }
@@ -279,30 +280,48 @@ var severityStats = [numSeverity]*OutputStats{
 // flag.Value; the -v flag is of type Level and should be modified
 // only through the flag.Value interface.
 //
-// Level
+// Level 被导出，因为它出现在 V 的参数中并且是 v 标志的类型，可以通过编程方式设置。
+// 它是另一种类型，因为我们希望将它与 logType 去区分开。
+// Leval 的值只能在 logging.mu 上锁时被改变。
+// -v 标志只能使用原子操作读取，所以日志模块的状态是一致的。
+//
+// Level 被视为 sync/atomic int32。
+//
+// Level 指定 V 日志的详细等级。*Level 实现了 flag.Value。-v 标志是 Level 类型，
+// 并且应该只能通过 flag.Value 接口被修改。
 type Level int32
 
 // get returns the value of the Level.
+//
+// get 返回 Level 的值。
 func (l *Level) get() Level {
 	return Level(atomic.LoadInt32((*int32)(l)))
 }
 
 // set sets the value of the Level.
+//
+// set 设置 Level 的值。
 func (l *Level) set(val Level) {
 	atomic.StoreInt32((*int32)(l), int32(val))
 }
 
 // String is part of the flag.Value interface.
+//
+// String 是 flag.Value 接口的一部分。
 func (l *Level) String() string {
 	return strconv.FormatInt(int64(*l), 10)
 }
 
 // Get is part of the flag.Value interface.
+//
+// Get 是 flag.Value 接口的一部分。
 func (l *Level) Get() interface{} {
 	return *l
 }
 
 // Set is part of the flag.Value interface.
+//
+// Set 是 flag.Value 接口的一部分。
 func (l *Level) Set(value string) error {
 	v, err := strconv.Atoi(value)
 	if err != nil {
@@ -315,20 +334,28 @@ func (l *Level) Set(value string) error {
 }
 
 // moduleSpec represents the setting of the -vmodule flag.
+//
+// moduleSpec 代表 -vmodule 标志的设置。
 type moduleSpec struct {
 	filter []modulePat
 }
 
 // modulePat contains a filter for the -vmodule flag.
 // It holds a verbosity level and a file pattern to match.
+//
+// modulePat 包含 -vmodule 标志的过滤器。
+// 它包含日志详细级别和匹配文件的模式。
 type modulePat struct {
 	pattern string
+	// 模式是一个文字串。即不含元字符，非正则匹配
 	literal bool // The pattern is a literal string
 	level   Level
 }
 
 // match reports whether the file matches the pattern. It uses a string
 // comparison if the pattern contains no metacharacters.
+//
+// match 检测是否有文件与 pattern 匹配。如果 pattern 不包含元字符，将直接比较字符串。
 func (m *modulePat) match(file string) bool {
 	if m.literal {
 		return file == m.pattern
@@ -339,6 +366,8 @@ func (m *modulePat) match(file string) bool {
 
 func (m *moduleSpec) String() string {
 	// Lock because the type is not atomic. TODO: clean this up.
+	//
+	// 上锁因为不是原子操作。TODO: 将此清除。
 	logging.mu.Lock()
 	defer logging.mu.Unlock()
 	var b bytes.Buffer
@@ -351,8 +380,10 @@ func (m *moduleSpec) String() string {
 	return b.String()
 }
 
-// Get is part of the (Go 1.2)  flag.Getter interface. It always returns nil for this flag type since the
+// Get is part of the (Go 1.2) flag.Getter interface. It always returns nil for this flag type since the
 // struct is not exported.
+//
+// Get 是（Go 1.2）flag.Getter 接口的一部分。它始终返回空，因为结构未导出。
 func (m *moduleSpec) Get() interface{} {
 	return nil
 }
@@ -360,11 +391,15 @@ func (m *moduleSpec) Get() interface{} {
 var errVmoduleSyntax = errors.New("syntax error: expect comma-separated list of filename=N")
 
 // Syntax: -vmodule=recordio=2,file=1,gfs*=3
+//
+// 语法：-vmodule=recordio=2,file=1,gfs*=3
 func (m *moduleSpec) Set(value string) error {
 	var filter []modulePat
 	for _, pat := range strings.Split(value, ",") {
 		if len(pat) == 0 {
 			// Empty strings such as from a trailing comma can be ignored.
+			//
+			// 尾随逗号的空字符串可以被忽略。
 			continue
 		}
 		patLev := strings.Split(pat, "=")
@@ -383,6 +418,8 @@ func (m *moduleSpec) Set(value string) error {
 			continue // Ignore. It's harmless but no point in paying the overhead.
 		}
 		// TODO: check syntax of filter?
+		//
+		// TODO: 检查过滤器的语法？
 		filter = append(filter, modulePat{pattern, isLiteral(pattern), Level(v)})
 	}
 	logging.mu.Lock()
@@ -517,11 +554,16 @@ type loggingT struct {
 	// does not let us avoid the =true, and that shorthand is necessary for
 	// compatibility. TODO: does this matter enough to fix? Seems unlikely.
 	//
-	// TS:
-	toStderr     bool // The -logtostderr flag.
+	// 布尔标志。没有以原子的方式处理，因为 flag.Value 接口
+	// -logtostderr 标志。
+	toStderr bool // The -logtostderr flag.
+	// -alsologtostderr 标志。
 	alsoToStderr bool // The -alsologtostderr flag.
 
 	// Level flag. Handled atomically.
+	//
+	// 日志等级标志。以原子的方式处理。
+	// -stderrthreshold 标志。
 	stderrThreshold severity // The -stderrthreshold flag.
 
 	// freeList is a list of byte buffers, maintained under freeListMu.
@@ -549,8 +591,9 @@ type loggingT struct {
 	traceLocation traceLocation
 	// These flags are modified only under lock, although verbosity may be fetched
 	// safely using atomic.LoadInt32.
-	vmodule   moduleSpec // The state of the -vmodule flag.
-	verbosity Level      // V logging level, the value of the -v flag/
+	vmodule moduleSpec // The state of the -vmodule flag.
+	// V 日志等级，-v 标志的值
+	verbosity Level // V logging level, the value of the -v flag
 
 	// If non-empty, overrides the choice of directory in which to write logs.
 	// See createLogDirs for the full list of possible destinations.
@@ -576,7 +619,8 @@ var logging loggingT
 // setVState sets a consistent state for V logging.
 // l.mu is held.
 //
-// setVState
+// setVState 设置
+// l.mu 被上锁。
 func (l *loggingT) setVState(verbosity Level, filter []modulePat, setFilter bool) {
 	// Turn verbosity off so V will not fire while we are in transition.
 	logging.verbosity.set(0)
@@ -1158,6 +1202,8 @@ type Verbose bool
 // the -v and --vmodule flags; both are off by default. If the level in the call to
 // V is at least the value of -v, or of -vmodule for the source file containing the
 // call, the V call will log.
+//
+// V
 func V(level Level) Verbose {
 	// This function tries hard to be cheap unless there's work to do.
 	// The fast path is two atomic loads and compares.

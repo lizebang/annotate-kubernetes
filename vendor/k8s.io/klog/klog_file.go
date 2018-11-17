@@ -67,11 +67,16 @@ func init() {
 	}
 
 	// Sanitize userName since it may contain filepath separators on Windows.
+	//
+	// 清理 userName 因为在 Windows 上它可能包含文件路径分隔符。
 	userName = strings.Replace(userName, `\`, "_", -1)
 }
 
 // shortHostname returns its argument, truncating at the first period.
 // For instance, given "www.google.com" it returns "www".
+//
+// shortHostname 返回其参数在第一个句点处的截断。
+// 例如，给定 "www.google.com" 它将返回 "www"。
 func shortHostname(hostname string) string {
 	if i := strings.Index(hostname, "."); i >= 0 {
 		return hostname[:i]
