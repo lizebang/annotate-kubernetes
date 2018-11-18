@@ -54,6 +54,12 @@ git clone git@github.com:lizebang/annotate-kubernetes.git $GOPATH/src/k8s.io/kub
 			"color": "#000",
 			"backgroundColor": "#a287f4",
 			"overviewRulerColor": "rgba(240,98,146,0.8)"
+		},
+		{
+			"text": "TSK:",
+			"color": "#000",
+			"backgroundColor": "#00aaFF",
+			"overviewRulerColor": "rgba(240,98,146,0.8)"
 		}
 	],
 
@@ -63,17 +69,19 @@ git clone git@github.com:lizebang/annotate-kubernetes.git $GOPATH/src/k8s.io/kub
 		"background": "white",
 		"type": "none"
 	},
-	"todo-tree.tags": ["TODO:", "FIXME:", "NOTE:", "TS:", "IMP:"],
+	"todo-tree.tags": ["TODO:", "FIXME:", "NOTE:", "TS:", "IMP:", "TSK:"],
 	"todo-tree.customHighlight": {
 		"TODO:": {},
 		"FIXME:": {},
 		"NOTE:": {},
 		"TS:": {},
-		"IMP:": {}
+		"IMP:": {},
+		"TSK:": {}
 	},
 ```
 
-`TS` 和 `IMP` 是我自己定义的，它们的含义是：
+`TS:`、`IMP:`、`TSK:` 是我自己定义的，它们的含义是：
 
 - `TS:` translate 翻译
 - `IMP:` important 重要
+- `TSK:` task 任务
