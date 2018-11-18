@@ -12,14 +12,6 @@ git clone git@github.com:lizebang/annotate-kubernetes.git $GOPATH/src/k8s.io/kub
 
 ## Settings
 
-### Workspace
-
-为了让 vscode 能正常跳转，不跳到 `$GOROOT`，请在 Workspace Settings 将 `go.goroot` 设置为本目录（绝对路径）。
-
-注意：vscode 可能会提示需要升级 go tools，此时请忽略。
-
-### Extension
-
 我的 `todo-highlight` 和 `todo-tree` 设置如下：
 
 ```settings
