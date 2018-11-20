@@ -505,6 +505,8 @@ func (t *traceLocation) Set(value string) error {
 }
 
 // flushSyncWriter is the interface satisfied by logging destinations.
+//
+// flushSyncWriter 是记录目标所满足的接口。
 type flushSyncWriter interface {
 	Flush() error
 	Sync() error
@@ -554,7 +556,8 @@ type loggingT struct {
 	// does not let us avoid the =true, and that shorthand is necessary for
 	// compatibility. TODO: does this matter enough to fix? Seems unlikely.
 	//
-	// 布尔标志。没有以原子的方式处理，因为 flag.Value 接口
+	// 布尔标志。因为 flag.Value 接口让我们使用 -name 而避免使用 -name=true 的方式，所以没有以原子的
+	// 方式处理，而对于兼容性这种简写的方式是必要的。TODO: 这件事能解决吗？似乎不太可能。
 	// -logtostderr 标志。
 	toStderr bool // The -logtostderr flag.
 	// -alsologtostderr 标志。
@@ -567,49 +570,80 @@ type loggingT struct {
 	stderrThreshold severity // The -stderrthreshold flag.
 
 	// freeList is a list of byte buffers, maintained under freeListMu.
+	//
+	// freeList 一个在 freeListMu 维护下的 buffer 列表。
 	freeList *buffer
 	// freeListMu maintains the free list. It is separate from the main mutex
 	// so buffers can be grabbed and printed to without holding the main lock,
 	// for better parallelization.
+	//
+	// freeListMu 维护着空闲列表。为了更好的并行，它与主互斥锁分开，因此可以抓住并打印缓冲区而无需控制主锁。
 	freeListMu sync.Mutex
 
 	// mu protects the remaining elements of this structure and is
 	// used to synchronize logging.
+	//
+	// mu 保护这个结构的剩余元素，它用于同步日志记录。
 	mu sync.Mutex
 	// file holds writer for each of the log types.
+	//
+	// file 保存每种类型日志的 writer。
 	file [numSeverity]flushSyncWriter
 	// pcs is used in V to avoid an allocation when computing the caller's PC.
+	//
+	// 在 V 中所以 pcs 来避免计算调用者 PC 时进行的分配。
 	pcs [1]uintptr
 	// vmap is a cache of the V Level for each V() call site, identified by PC.
 	// It is wiped whenever the vmodule flag changes state.
+	//
+	// vmap 是每个 V() 调用点的 V Level 的缓存，由 PC 来标识。
+	// 只要 vmodule 标志改变状态，它就会被清除。
 	vmap map[uintptr]Level
 	// filterLength stores the length of the vmodule filter chain. If greater
 	// than zero, it means vmodule is enabled. It may be read safely
 	// using sync.LoadInt32, but is only modified under mu.
+	//
+	// filterLength 存储 vmodule 过滤器链的长度。如果大于 0，就表明启用了 vmodule。
+	// 它可以使用 sync.LoadInt32 进行安全地读取，但是仅在 mu 上锁的情况下进行修改。
 	filterLength int32
 	// traceLocation is the state of the -log_backtrace_at flag.
+	//
+	// traceLocation 是 -log_backtrace_at 标志的状态。
 	traceLocation traceLocation
 	// These flags are modified only under lock, although verbosity may be fetched
 	// safely using atomic.LoadInt32.
+	//
+	// 虽然详细信息可以使用 atomic.LoadInt32 安全地获取到，但是这些标志仅在上锁的情况下进行修改。
+	// -vmodule 标志的状态。
 	vmodule moduleSpec // The state of the -vmodule flag.
 	// V 日志等级，-v 标志的值
 	verbosity Level // V logging level, the value of the -v flag
 
 	// If non-empty, overrides the choice of directory in which to write logs.
 	// See createLogDirs for the full list of possible destinations.
+	//
+	// 如果不为空，覆盖选择写入日志的目录。
+	// 有关可能目标的完整列表，请参阅 createLogDirs。
 	logDir string
 
 	// If non-empty, specifies the path of the file to write logs. mutually exclusive
 	// with the log-dir option.
+	//
+	// 如果不为空，则指定要写入日志的文件路径。与 log-dir 选项互斥。
 	logFile string
 
 	// If true, do not add the prefix headers, useful when used with SetOutput
+	//
+	// 如果为 true，将不会添加前缀日志头，与 SetOutput 一起使用时非常有用。
 	skipHeaders bool
 }
 
 // buffer holds a byte Buffer for reuse. The zero value is ready for use.
+//
+// buffer 重用 bytes.Buffer 的方法。零值是可以使用的。
 type buffer struct {
 	bytes.Buffer
+	// 用于创建日志头的临时字节数组。
 	tmp  [64]byte // temporary byte array for creating headers.
 	next *buffer
 }
@@ -619,15 +653,21 @@ var logging loggingT
 // setVState sets a consistent state for V logging.
 // l.mu is held.
 //
-// setVState 设置
+// setVState 为 V 日志记录设置一致状态。
 // l.mu 被上锁。
 func (l *loggingT) setVState(verbosity Level, filter []modulePat, setFilter bool) {
 	// Turn verbosity off so V will not fire while we are in transition.
+	//
+	// 关闭详细记录以便在过渡期不触发 V。
 	logging.verbosity.set(0)
 	// Ditto for filter length.
+	//
+	// 过滤器长度同上。
 	atomic.StoreInt32(&logging.filterLength, 0)
 
 	// Set the new filters and wipe the pc->Level map if the filter has changed.
+	//
+	// 设置新的过滤器，并且如果过滤器更改，将清除 pc->Level 的映射。
 	if setFilter {
 		logging.vmodule.filter = filter
 		logging.vmap = make(map[uintptr]Level)
@@ -635,6 +675,10 @@ func (l *loggingT) setVState(verbosity Level, filter []modulePat, setFilter bool
 
 	// Things are consistent now, so enable filtering and verbosity.
 	// They are enabled in order opposite to that in V.
+	//
+	// 现在事情是一致的，所以启用过滤器和消息记录。
+	// 以相反的顺序启用它们。
+	// TSK: 为什么以相反的顺序启用。
 	atomic.StoreInt32(&logging.filterLength, int32(len(filter)))
 	logging.verbosity.set(verbosity)
 }
@@ -826,6 +870,8 @@ func (l *loggingT) printWithFileLine(s severity, file string, line int, alsoToSt
 }
 
 // redirectBuffer is used to set an alternate destination for the logs
+//
+// redirectBuffer 用于设置日志的备用位置。
 type redirectBuffer struct {
 	w io.Writer
 }
@@ -843,6 +889,8 @@ func (rb *redirectBuffer) Write(bytes []byte) (n int, err error) {
 }
 
 // SetOutput sets the output destination for all severities
+//
+// SetOutput 设置所有严重日志的输出位置。
 func SetOutput(w io.Writer) {
 	for s := fatalLog; s >= infoLog; s-- {
 		rb := &redirectBuffer{
@@ -1083,7 +1131,7 @@ func (l *loggingT) flushDaemon() {
 
 // lockAndFlushAll is like flushAll but locks l.mu first.
 //
-// TS: lockAndFlushAll 同 flushAll 一样，但是会先对 l.mu 上锁。
+// lockAndFlushAll 同 flushAll 一样，但是会先对 l.mu 上锁。
 func (l *loggingT) lockAndFlushAll() {
 	l.mu.Lock()
 	l.flushAll()
@@ -1098,7 +1146,7 @@ func (l *loggingT) lockAndFlushAll() {
 func (l *loggingT) flushAll() {
 	// Flush from fatal down, in case there's trouble flushing.
 	//
-	//
+	// Flush 从 fatal 级别开始然后递减，以防刷新和同步过程出错。
 	for s := fatalLog; s >= infoLog; s-- {
 		file := l.file[s]
 		if file != nil {
