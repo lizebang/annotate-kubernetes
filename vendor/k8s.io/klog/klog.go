@@ -344,7 +344,7 @@ type moduleSpec struct {
 // It holds a verbosity level and a file pattern to match.
 //
 // modulePat 包含 -vmodule 标志的过滤器。
-// 它包含日志详细级别和匹配文件的模式。
+// 它包含日志详细等级和匹配文件的模式。
 type modulePat struct {
 	pattern string
 	// 模式是一个文字串。即不含元字符，非正则匹配
@@ -435,6 +435,8 @@ func isLiteral(pattern string) bool {
 }
 
 // traceLocation represents the setting of the -log_backtrace_at flag.
+//
+// traceLocation 代表 -log_backtrace_at 标志的设置。
 type traceLocation struct {
 	file string
 	line int
@@ -442,6 +444,9 @@ type traceLocation struct {
 
 // isSet reports whether the trace location has been specified.
 // logging.mu is held.
+//
+// isSet 检测是否已指定跟踪位置。
+// logging.mu 已上锁。
 func (t *traceLocation) isSet() bool {
 	return t.line > 0
 }
@@ -449,6 +454,10 @@ func (t *traceLocation) isSet() bool {
 // match reports whether the specified file and line matches the trace location.
 // The argument file name is the full path, not the basename specified in the flag.
 // logging.mu is held.
+//
+// match 检测指定的文件和行是否与跟踪位置匹配。
+// 参数中的文件名是完整路径，而不是标志中指的基本名称。
+// logging.mu 已上锁。
 func (t *traceLocation) match(file string, line int) bool {
 	if t.line != line {
 		return false
@@ -506,7 +515,7 @@ func (t *traceLocation) Set(value string) error {
 
 // flushSyncWriter is the interface satisfied by logging destinations.
 //
-// flushSyncWriter 是记录目标所满足的接口。
+// flushSyncWriter 是记录器所满足的接口。
 type flushSyncWriter interface {
 	Flush() error
 	Sync() error
@@ -613,7 +622,7 @@ type loggingT struct {
 	// These flags are modified only under lock, although verbosity may be fetched
 	// safely using atomic.LoadInt32.
 	//
-	// 虽然详细信息可以使用 atomic.LoadInt32 安全地获取到，但是这些标志仅在上锁的情况下进行修改。
+	// 虽然详细等级可以使用 atomic.LoadInt32 安全地获取到，但是这些标志仅在上锁的情况下进行修改。
 	// -vmodule 标志的状态。
 	vmodule moduleSpec // The state of the -vmodule flag.
 	// V 日志等级，-v 标志的值
@@ -654,11 +663,11 @@ var logging loggingT
 // l.mu is held.
 //
 // setVState 为 V 日志记录设置一致状态。
-// l.mu 被上锁。
+// l.mu 已上锁。
 func (l *loggingT) setVState(verbosity Level, filter []modulePat, setFilter bool) {
 	// Turn verbosity off so V will not fire while we are in transition.
 	//
-	// 关闭详细记录以便在过渡期不触发 V。
+	// 关闭详细等级以便在过渡期不触发 V。
 	logging.verbosity.set(0)
 	// Ditto for filter length.
 	//
@@ -684,6 +693,8 @@ func (l *loggingT) setVState(verbosity Level, filter []modulePat, setFilter bool
 }
 
 // getBuffer returns a new, ready-to-use buffer.
+//
+// getBuffer 返回一个新的、可立即使用的缓冲区。
 func (l *loggingT) getBuffer() *buffer {
 	l.freeListMu.Lock()
 	b := l.freeList
@@ -731,6 +742,23 @@ where the fields are defined as follows:
 	line             The line number
 	msg              The user-supplied message
 */
+/*
+header 格式化 C++ 实现定义的日志头。
+它返回一个缓冲区，它包含格式化的日志头以及用户文件和行号。
+depth 指明在日志信息中要标识出的文件和行号相对调用函数所在行上面的堆栈层数。
+
+日志行具有以下形式：
+	Lmmdd hh:mm:ss.uuuuuu threadid file:line] msg...
+字段定义如下：
+	L                单个字符，表示日志级别（例如，"I" 表示 INFO）
+	mm               月份（零填充，例如五月是 "05"）
+	dd               日期（零填充）
+	hh:mm:ss.uuuuuu  以小时、分钟、微秒表示的时间
+	threadid         由 GetTID() 返回的空格填充的线程 ID
+	file             文件名
+	line             行号
+	msg              用户提供的信息
+*/
 func (l *loggingT) header(s severity, depth int) (*buffer, string, int) {
 	_, file, line, ok := runtime.Caller(3 + depth)
 	if !ok {
@@ -746,12 +774,16 @@ func (l *loggingT) header(s severity, depth int) (*buffer, string, int) {
 }
 
 // formatHeader formats a log header using the provided file name and line number.
+//
+// formatHeader 使用提供的文件名和行号格式化日志头。
 func (l *loggingT) formatHeader(s severity, file string, line int) *buffer {
 	now := timeNow()
 	if line < 0 {
+		// 不是真正的行号，但是某些数字是可以接受的。
 		line = 0 // not a real line number, but acceptable to someDigits
 	}
 	if s > fatalLog {
+		// 为了安全
 		s = infoLog // for safety.
 	}
 	buf := l.getBuffer()
@@ -761,6 +793,9 @@ func (l *loggingT) formatHeader(s severity, file string, line int) *buffer {
 
 	// Avoid Fprintf, for speed. The format is so simple that we can do it quickly by hand.
 	// It's worth about 3X. Fprintf is hard.
+	//
+	// 为了提高速度，避免使用 Fprintf。格式非常简单，我们可以手动快速完成。
+	// 它的速度大约是 Fprintf 的三倍。Fprintf 很慢。
 	_, month, day := now.Date()
 	hour, minute, second := now.Clock()
 	// Lmmdd hh:mm:ss.uuuuuu threadid file:line]
@@ -776,6 +811,7 @@ func (l *loggingT) formatHeader(s severity, file string, line int) *buffer {
 	buf.tmp[14] = '.'
 	buf.nDigits(6, 15, now.Nanosecond()/1000, '0')
 	buf.tmp[21] = ' '
+	// TODO: 应该是 TID
 	buf.nDigits(7, 22, pid, ' ') // TODO: should be TID
 	buf.tmp[29] = ' '
 	buf.Write(buf.tmp[:30])
@@ -789,10 +825,14 @@ func (l *loggingT) formatHeader(s severity, file string, line int) *buffer {
 }
 
 // Some custom tiny helper functions to print the log header efficiently.
+//
+// 一些自定义的小辅助函数可以有效地打印日志头。
 
 const digits = "0123456789"
 
 // twoDigits formats a zero-prefixed two-digit integer at buf.tmp[i].
+//
+// twoDigits 将 buf.tmp[i:i+1] 赋值为两位整数，不足两位左填充零。
 func (buf *buffer) twoDigits(i, d int) {
 	buf.tmp[i+1] = digits[d%10]
 	d /= 10
@@ -802,6 +842,9 @@ func (buf *buffer) twoDigits(i, d int) {
 // nDigits formats an n-digit integer at buf.tmp[i],
 // padding with pad on the left.
 // It assumes d >= 0.
+//
+// nDigits 将 buf.tmp[i:i+n-1] 赋值为 n 位整数，不足 n 位左填充 pad。
+// 假定 d >= 0。
 func (buf *buffer) nDigits(n, i, d int, pad byte) {
 	j := n - 1
 	for ; j >= 0 && d > 0; j-- {
@@ -814,9 +857,14 @@ func (buf *buffer) nDigits(n, i, d int, pad byte) {
 }
 
 // someDigits formats a zero-prefixed variable-width integer at buf.tmp[i].
+//
+// someDigits 将 buf.tmp[i:] 赋值为不定常整数 d。
 func (buf *buffer) someDigits(i, d int) int {
 	// Print into the top, then copy down. We know there's space for at least
 	// a 10-digit number.
+	//
+	// 先将 d 存放到 buf.tmp 的最后，然后复制到 i 后。
+	// 我们知道这里至少有 10 位数字的空间。
 	j := len(buf.tmp)
 	for {
 		j--
@@ -836,6 +884,7 @@ func (l *loggingT) println(s severity, args ...interface{}) {
 }
 
 func (l *loggingT) print(s severity, args ...interface{}) {
+	// printDepth 的参数 depth 为 1，是因为 Info 等较 InfoDepth 多了 print 这一步调用。
 	l.printDepth(s, 1, args...)
 }
 
@@ -913,6 +962,8 @@ func SetOutputBySeverity(name string, w io.Writer) {
 }
 
 // output writes the data to the log files and releases the buffer.
+//
+// output 将数据写入到日志文件中，并释放缓冲区。
 func (l *loggingT) output(s severity, buf *buffer, file string, line int, alsoToStderr bool) {
 	l.mu.Lock()
 	if l.traceLocation.isSet() {
@@ -1026,6 +1077,10 @@ var logExitFunc func(error)
 // exit is called if there is trouble creating or writing log files.
 // It flushes the logs and exits the program; there's no point in hanging around.
 // l.mu is held.
+//
+// 如果创建或写入日志文件时出错，则会调用 exit。
+// 它会刷新日志并退出程序，此时将程序挂起没有意义。
+// l.mu 已上锁。
 func (l *loggingT) exit(err error) {
 	fmt.Fprintf(os.Stderr, "log: exiting because of error: %s\n", err)
 	// If logExitFunc is set, we do that instead of exiting.
@@ -1100,6 +1155,9 @@ const bufferSize = 256 * 1024
 
 // createFiles creates all the log files for severity from sev down to infoLog.
 // l.mu is held.
+//
+// createFiles 创建参数所示严重等级到 infoLog 级的所有日志文件。
+// l.mu 已上锁。
 func (l *loggingT) createFiles(sev severity) error {
 	now := time.Now()
 	// Files are created in decreasing severity order, so as soon as we find one
@@ -1212,10 +1270,17 @@ func (lb logBridge) Write(b []byte) (n int, err error) {
 // of its .go suffix, and uses filepath.Match, which is a little more
 // general than the *? matching used in C++.
 // l.mu is held.
+//
+// setV 在启用 vmodule 时，计算并储存给定 PC 的 V 等级。
+// 文件匹配模式采用文件的基本名称，去掉了 .go 后缀，并使用了 filepath.Match 函数，这比
+// C++ 中使用的 *? 匹配模式更加通用。
+// l.mu 已上锁。
 func (l *loggingT) setV(pc uintptr) Level {
 	fn := runtime.FuncForPC(pc)
 	file, _ := fn.FileLine(pc)
 	// The file is something like /a/b/c/d.go. We want just the d.
+	//
+	// 该文件类似于 /a/b/c/d.go。我们只想要 d。
 	if strings.HasSuffix(file, ".go") {
 		file = file[:len(file)-3]
 	}
@@ -1234,6 +1299,9 @@ func (l *loggingT) setV(pc uintptr) Level {
 
 // Verbose is a boolean type that implements Infof (like Printf) etc.
 // See the documentation of V for more information.
+//
+// Verbose 是一个布尔类型，它实现了 Infof（像 Printf）等。
+// 更多信息请查阅 V 的文档。
 type Verbose bool
 
 // V reports whether verbosity at the call site is at least the requested level.
@@ -1251,18 +1319,36 @@ type Verbose bool
 // V is at least the value of -v, or of -vmodule for the source file containing the
 // call, the V call will log.
 //
-// V
+// V 检测在调用点的详细等级是否至少是要求的级别。
+// 返回的值是 Verbose 类型的布尔值，它实现了 Info、Infoln、Infof。如果调用这些方法，将写入 Info 日志中。
+// 因此，我们可以使用下面的任何一种形式：
+//	if glog.V(2) { glog.Info("log this") }
+// 或者
+//	glog.V(2).Info("log this")
+// 第二种形式更短，但是如果没有开启 V 日志第一种形式的开销更小，因为它不会评测参数。
+//
+// 单个 V 的调用是否生成日志记录取决于 -v 和 -vmodule 标志的设置，两者都默认关闭。如果 V 的调用级别至少是
+// -v 的值或 -vmodule 源文件包含此调用，则 V 调用将记录。
+// TSK: V 日志
 func V(level Level) Verbose {
 	// This function tries hard to be cheap unless there's work to do.
 	// The fast path is two atomic loads and compares.
+	//
+	// 除非对此处进行修改，否则此函数的开销很难变小。
+	// 快速途径是两次原子加载并比较。
 
 	// Here is a cheap but safe test to see if V logging is enabled globally.
+	//
+	// 这是一个低开销且安全的测试，可以查看是否全局开启了 V 日志。
 	if logging.verbosity.get() >= level {
 		return Verbose(true)
 	}
 
 	// It's off globally but it vmodule may still be set.
 	// Here is another cheap but safe test to see if vmodule is enabled.
+	//
+	// 没用开启全局的，但是 vmodule 可能仍然被设置了。
+	// TSK:
 	if atomic.LoadInt32(&logging.filterLength) > 0 {
 		// Now we need a proper lock to use the logging structure. The pcs field
 		// is shared so we must lock before accessing it. This is fairly expensive,
@@ -1307,72 +1393,108 @@ func (v Verbose) Infof(format string, args ...interface{}) {
 
 // Info logs to the INFO log.
 // Arguments are handled in the manner of fmt.Print; a newline is appended if missing.
+//
+// Info 记录到 INFO 日志中。
+// 参数以 fmt.Print 的方式处理，如果没有参数，则附加换行符。
 func Info(args ...interface{}) {
 	logging.print(infoLog, args...)
 }
 
 // InfoDepth acts as Info but uses depth to determine which call frame to log.
 // InfoDepth(0, "msg") is the same as Info("msg").
+//
+// InfoDepth 做的处理同 Info 一样，但是使用 depth 来确定要记录到调用帧。
+// InfoDepth(0, "msg") 同 Info("msg") 一样。
 func InfoDepth(depth int, args ...interface{}) {
 	logging.printDepth(infoLog, depth, args...)
 }
 
 // Infoln logs to the INFO log.
 // Arguments are handled in the manner of fmt.Println; a newline is appended if missing.
+//
+// Infoln 记录到 INFO 日志中。
+// 参数以 fmt.Println 的方式处理，如果没有参数，则附加换行符。
 func Infoln(args ...interface{}) {
 	logging.println(infoLog, args...)
 }
 
 // Infof logs to the INFO log.
 // Arguments are handled in the manner of fmt.Printf; a newline is appended if missing.
+//
+// Infof 记录到 INFO 日志中。
+// 参数以 fmt.Printf 的方式处理，如果没有参数，则附加换行符。
 func Infof(format string, args ...interface{}) {
 	logging.printf(infoLog, format, args...)
 }
 
 // Warning logs to the WARNING and INFO logs.
 // Arguments are handled in the manner of fmt.Print; a newline is appended if missing.
+//
+// Warning 记录到 WARNING 和 INFO 日志中。
+// 参数以 fmt.Print 的方式处理，如果没有参数，则附加换行符。
 func Warning(args ...interface{}) {
 	logging.print(warningLog, args...)
 }
 
 // WarningDepth acts as Warning but uses depth to determine which call frame to log.
 // WarningDepth(0, "msg") is the same as Warning("msg").
+//
+// WarningDepth 做的处理同 Warning 一样，但是使用 depth 来确定要记录到调用帧。
+// WarningDepth(0, "msg") 同 Warning("msg") 一样。
 func WarningDepth(depth int, args ...interface{}) {
 	logging.printDepth(warningLog, depth, args...)
 }
 
 // Warningln logs to the WARNING and INFO logs.
 // Arguments are handled in the manner of fmt.Println; a newline is appended if missing.
+//
+// Warningln 记录到 WARNING 和 INFO 日志中。
+// 参数以 fmt.Println 的方式处理，如果没有参数，则附加换行符。
 func Warningln(args ...interface{}) {
 	logging.println(warningLog, args...)
 }
 
 // Warningf logs to the WARNING and INFO logs.
 // Arguments are handled in the manner of fmt.Printf; a newline is appended if missing.
+//
+// Warningf 记录到 WARNING 和 INFO 日志中。
+// 参数以 fmt.Printf 的方式处理，如果没有参数，则附加换行符。
 func Warningf(format string, args ...interface{}) {
 	logging.printf(warningLog, format, args...)
 }
 
 // Error logs to the ERROR, WARNING, and INFO logs.
 // Arguments are handled in the manner of fmt.Print; a newline is appended if missing.
+//
+// Error 记录到 Error、WARNING 和 INFO 日志中。
+// 参数以 fmt.Print 的方式处理，如果没有参数，则附加换行符。
 func Error(args ...interface{}) {
 	logging.print(errorLog, args...)
 }
 
 // ErrorDepth acts as Error but uses depth to determine which call frame to log.
 // ErrorDepth(0, "msg") is the same as Error("msg").
+//
+// ErrorDepth 做的处理同 Error 一样，但是使用 depth 来确定要记录到调用帧。
+// ErrorDepth(0, "msg") 同 Error("msg") 一样。
 func ErrorDepth(depth int, args ...interface{}) {
 	logging.printDepth(errorLog, depth, args...)
 }
 
 // Errorln logs to the ERROR, WARNING, and INFO logs.
 // Arguments are handled in the manner of fmt.Println; a newline is appended if missing.
+//
+// Errorln 记录到 Error、WARNING 和 INFO 日志中。
+// 参数以 fmt.Println 的方式处理，如果没有参数，则附加换行符。
 func Errorln(args ...interface{}) {
 	logging.println(errorLog, args...)
 }
 
 // Errorf logs to the ERROR, WARNING, and INFO logs.
 // Arguments are handled in the manner of fmt.Printf; a newline is appended if missing.
+//
+// Errorf 记录到 Error、WARNING 和 INFO 日志中。
+// 参数以 fmt.Printf 的方式处理，如果没有参数，则附加换行符。
 func Errorf(format string, args ...interface{}) {
 	logging.printf(errorLog, format, args...)
 }
@@ -1380,12 +1502,19 @@ func Errorf(format string, args ...interface{}) {
 // Fatal logs to the FATAL, ERROR, WARNING, and INFO logs,
 // including a stack trace of all running goroutines, then calls os.Exit(255).
 // Arguments are handled in the manner of fmt.Print; a newline is appended if missing.
+//
+// Fatal 记录到 Fatal、Error、WARNING 和 INFO 日志中，包括所有正在运行的 goroutines 的堆栈跟踪消息
+// ，然后调用 os.Exit(255)。
+// 参数以 fmt.Print 的方式处理，如果没有参数，则附加换行符。
 func Fatal(args ...interface{}) {
 	logging.print(fatalLog, args...)
 }
 
 // FatalDepth acts as Fatal but uses depth to determine which call frame to log.
 // FatalDepth(0, "msg") is the same as Fatal("msg").
+//
+// FatalDepth 做的处理同 Fatal 一样，但是使用 depth 来确定要记录到调用帧。
+// FatalDepth(0, "msg") 同 Fatal("msg") 一样。
 func FatalDepth(depth int, args ...interface{}) {
 	logging.printDepth(fatalLog, depth, args...)
 }
@@ -1393,6 +1522,10 @@ func FatalDepth(depth int, args ...interface{}) {
 // Fatalln logs to the FATAL, ERROR, WARNING, and INFO logs,
 // including a stack trace of all running goroutines, then calls os.Exit(255).
 // Arguments are handled in the manner of fmt.Println; a newline is appended if missing.
+//
+// Fatalln 记录到 Fatal、Error、WARNING 和 INFO 日志中，包括所有正在运行的 goroutines 的堆栈跟踪消息
+// ，然后调用 os.Exit(255)。
+// 参数以 fmt.Println 的方式处理，如果没有参数，则附加换行符。
 func Fatalln(args ...interface{}) {
 	logging.println(fatalLog, args...)
 }
@@ -1400,16 +1533,26 @@ func Fatalln(args ...interface{}) {
 // Fatalf logs to the FATAL, ERROR, WARNING, and INFO logs,
 // including a stack trace of all running goroutines, then calls os.Exit(255).
 // Arguments are handled in the manner of fmt.Printf; a newline is appended if missing.
+//
+// Fatalf 记录到 Fatal、Error、WARNING 和 INFO 日志中，包括所有正在运行的 goroutines 的堆栈跟踪消息
+// ，然后调用 os.Exit(255)。
+// 参数以 fmt.Printf 的方式处理，如果没有参数，则附加换行符。
 func Fatalf(format string, args ...interface{}) {
 	logging.printf(fatalLog, format, args...)
 }
 
 // fatalNoStacks is non-zero if we are to exit without dumping goroutine stacks.
 // It allows Exit and relatives to use the Fatal logs.
+//
+// 如果我们要退出而不转储 goroutine 的堆栈信息，fatalNoStacks 将不为零。
+// 它允许 Exit 访问，并且与 Fatal 日志有关系。
 var fatalNoStacks uint32
 
 // Exit logs to the FATAL, ERROR, WARNING, and INFO logs, then calls os.Exit(1).
 // Arguments are handled in the manner of fmt.Print; a newline is appended if missing.
+//
+// Exit 记录到 Fatal、Error、WARNING 和 INFO 日志中，然后调用 os.Exit(1)。
+// 参数以 fmt.Print 的方式处理，如果没有参数，则附加换行符。
 func Exit(args ...interface{}) {
 	atomic.StoreUint32(&fatalNoStacks, 1)
 	logging.print(fatalLog, args...)
@@ -1417,12 +1560,19 @@ func Exit(args ...interface{}) {
 
 // ExitDepth acts as Exit but uses depth to determine which call frame to log.
 // ExitDepth(0, "msg") is the same as Exit("msg").
+//
+// ExitDepth 做的处理同 Exit 一样，但是使用 depth 来确定要记录到调用帧。
+// ExitDepth(0, "msg") 同 Exit("msg") 一样。
 func ExitDepth(depth int, args ...interface{}) {
 	atomic.StoreUint32(&fatalNoStacks, 1)
 	logging.printDepth(fatalLog, depth, args...)
 }
 
 // Exitln logs to the FATAL, ERROR, WARNING, and INFO logs, then calls os.Exit(1).
+// Arguments are handled in the manner of fmt.Println; a newline is appended if missing.
+//
+// Exitln 记录到 Fatal、Error、WARNING 和 INFO 日志中，然后调用 os.Exit(1)。
+// 参数以 fmt.Println 的方式处理，如果没有参数，则附加换行符。
 func Exitln(args ...interface{}) {
 	atomic.StoreUint32(&fatalNoStacks, 1)
 	logging.println(fatalLog, args...)
@@ -1430,6 +1580,9 @@ func Exitln(args ...interface{}) {
 
 // Exitf logs to the FATAL, ERROR, WARNING, and INFO logs, then calls os.Exit(1).
 // Arguments are handled in the manner of fmt.Printf; a newline is appended if missing.
+//
+// Exitf 记录到 Fatal、Error、WARNING 和 INFO 日志中，然后调用 os.Exit(1)。
+// 参数以 fmt.Printf 的方式处理，如果没有参数，则附加换行符。
 func Exitf(format string, args ...interface{}) {
 	atomic.StoreUint32(&fatalNoStacks, 1)
 	logging.printf(fatalLog, format, args...)
