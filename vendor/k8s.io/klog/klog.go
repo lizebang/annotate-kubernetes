@@ -90,7 +90,7 @@
 // 程序应该在退出之前调用 Flush 以保证写入所有日志。
 //
 // 默认情况下，所有日志都写入临时目录中的文件。
-// 此包提供了几个可以改变此默认操作的标志。
+// 此包提供了几个用于改变此默认操作的标志。
 // 因此，flag.Parse 必须在所有日志完全前调用。
 //
 //	-logtostderr=false
@@ -347,7 +347,7 @@ type moduleSpec struct {
 // 它包含日志详细等级和匹配文件的模式。
 type modulePat struct {
 	pattern string
-	// 模式是一个文字串。即不含元字符，非正则匹配
+	// pattern 是一个文字串。（即不含元字符，非正则匹配）
 	literal bool // The pattern is a literal string
 	level   Level
 }
@@ -367,7 +367,7 @@ func (m *modulePat) match(file string) bool {
 func (m *moduleSpec) String() string {
 	// Lock because the type is not atomic. TODO: clean this up.
 	//
-	// 上锁因为不是原子操作。TODO: 将此清除。
+	// 上锁是因为不是原子操作。TODO: 将此清除。
 	logging.mu.Lock()
 	defer logging.mu.Unlock()
 	var b bytes.Buffer
@@ -430,6 +430,8 @@ func (m *moduleSpec) Set(value string) error {
 
 // isLiteral reports whether the pattern is a literal string, that is, has no metacharacters
 // that require filepath.Match to be called to match the pattern.
+//
+// isLiteral 检测 pattern 是否是一个文字串，即没有元字符需要调用 filepath.Match 来匹配 pattern。
 func isLiteral(pattern string) bool {
 	return !strings.ContainsAny(pattern, `\*?[]`)
 }
@@ -456,7 +458,7 @@ func (t *traceLocation) isSet() bool {
 // logging.mu is held.
 //
 // match 检测指定的文件和行是否与跟踪位置匹配。
-// 参数中的文件名是完整路径，而不是标志中指的基本名称。
+// 参数中的文件名可能是完整路径，而不非标志中指定的基本名称。
 // logging.mu 已上锁。
 func (t *traceLocation) match(file string, line int) bool {
 	if t.line != line {
@@ -470,6 +472,8 @@ func (t *traceLocation) match(file string, line int) bool {
 
 func (t *traceLocation) String() string {
 	// Lock because the type is not atomic. TODO: clean this up.
+	//
+	// 上锁因为不是原子操作。TODO: 将此清除。
 	logging.mu.Lock()
 	defer logging.mu.Unlock()
 	return fmt.Sprintf("%s:%d", t.file, t.line)
@@ -477,6 +481,8 @@ func (t *traceLocation) String() string {
 
 // Get is part of the (Go 1.2) flag.Getter interface. It always returns nil for this flag type since the
 // struct is not exported
+//
+// Get 是（Go 1.2）flag.Getter 接口的一部分。它始终返回空，因为结构未导出。
 func (t *traceLocation) Get() interface{} {
 	return nil
 }
@@ -485,9 +491,14 @@ var errTraceSyntax = errors.New("syntax error: expect file.go:234")
 
 // Syntax: -log_backtrace_at=gopherflakes.go:234
 // Note that unlike vmodule the file extension is included here.
+//
+// 语法：-log_backtrace_at=gopherflakes.go:234
+// 注意，与 vmodule 不同，此处包含文件扩展名。
 func (t *traceLocation) Set(value string) error {
 	if value == "" {
 		// Unset.
+		//
+		// 不设置。
 		t.line = 0
 		t.file = ""
 	}
@@ -712,9 +723,13 @@ func (l *loggingT) getBuffer() *buffer {
 }
 
 // putBuffer returns a buffer to the free list.
+//
+// putBuffer 将一个 buffer 放回空闲列表。
 func (l *loggingT) putBuffer(b *buffer) {
 	if b.Len() >= 256 {
 		// Let big buffers die a natural death.
+		//
+		// 让大的缓冲区被 GC 自动回收。
 		return
 	}
 	l.freeListMu.Lock()
@@ -723,6 +738,7 @@ func (l *loggingT) putBuffer(b *buffer) {
 	l.freeListMu.Unlock()
 }
 
+// 用于测试的存根。
 var timeNow = time.Now // Stubbed out for testing.
 
 /*
@@ -826,7 +842,7 @@ func (l *loggingT) formatHeader(s severity, file string, line int) *buffer {
 
 // Some custom tiny helper functions to print the log header efficiently.
 //
-// 一些自定义的小辅助函数可以有效地打印日志头。
+// 一些自定义的小辅助函数用于有效地打印日志头。
 
 const digits = "0123456789"
 
@@ -906,9 +922,12 @@ func (l *loggingT) printf(s severity, format string, args ...interface{}) {
 	l.output(s, buf, file, line, false)
 }
 
-// printWithFileLine behaves like print but uses the provided file and line number.  If
+// printWithFileLine behaves like print but uses the provided file and line number. If
 // alsoLogToStderr is true, the log message always appears on standard error; it
 // will also appear in the log file unless --logtostderr is set.
+//
+// printWithFileLine 的行为类似与 print，但是提供的的文件和行号。如果 alsoLogToStderr 为 true，
+// 日志消息始终显示在标准错误中。除非设置了 --logtostderr，否则它也会出现在日志文件中。
 func (l *loggingT) printWithFileLine(s severity, file string, line int, alsoToStderr bool, args ...interface{}) {
 	buf := l.formatHeader(s, file, line)
 	fmt.Fprint(buf, args...)
@@ -950,6 +969,8 @@ func SetOutput(w io.Writer) {
 }
 
 // SetOutputBySeverity sets the output destination for specific severity
+//
+// SetOutputBySeverity 为指定日志严重等级设置输出目标
 func SetOutputBySeverity(name string, w io.Writer) {
 	sev, ok := severityByName(name)
 	if !ok {
@@ -980,6 +1001,7 @@ func (l *loggingT) output(s severity, buf *buffer, file string, line int, alsoTo
 		}
 		if l.file[s] == nil {
 			if err := l.createFiles(s); err != nil {
+				// 确保消息出现在某处。
 				os.Stderr.Write(data) // Make sure the message appears somewhere.
 				l.exit(err)
 			}
@@ -1000,6 +1022,8 @@ func (l *loggingT) output(s severity, buf *buffer, file string, line int, alsoTo
 	}
 	if s == fatalLog {
 		// If we got here via Exit rather than Fatal, print no stacks.
+		//
+		// 如果我们通过 Exit 而不是 Fatal 到这里，则不打印堆栈信息。
 		if atomic.LoadUint32(&fatalNoStacks) > 0 {
 			l.mu.Unlock()
 			timeoutFlush(10 * time.Second)
@@ -1009,19 +1033,28 @@ func (l *loggingT) output(s severity, buf *buffer, file string, line int, alsoTo
 		// First, make sure we see the trace for the current goroutine on standard error.
 		// If -logtostderr has been specified, the loop below will do that anyway
 		// as the first stack in the full dump.
+		//
+		// 在退出之前转储所有 goroutine 的堆栈信息。
+		// 首先，确保我们可以在标准错误输出中看到当前 goroutine 的堆栈信息。
+		// 如果指定了 -logtostderr，则下面的循环将作为完整转储过程中第一个执行此操作的堆栈。
 		if !l.toStderr {
 			os.Stderr.Write(stacks(false))
 		}
 		// Write the stack trace for all goroutines to the files.
+		//
+		// 将所有 goroutines 的堆栈跟踪信息写入到文件中。
 		trace := stacks(true)
+		// 如果我们收到一个写入错误，我们仍然会在下面退出。
 		logExitFunc = func(error) {} // If we get a write error, we'll still exit below.
 		for log := fatalLog; log >= infoLog; log-- {
+			// 如果设置了 -logtostderr，则可以为 nil。
 			if f := l.file[log]; f != nil { // Can be nil if -logtostderr is set.
 				f.Write(trace)
 			}
 		}
 		l.mu.Unlock()
 		timeoutFlush(10 * time.Second)
+		// C++ 使用 -1，这很愚蠢，因为无论如何它会与 255 进行 & 运算。
 		os.Exit(255) // C++ uses -1, which is silly because it's anded with 255 anyway.
 	}
 	l.putBuffer(buf)
@@ -1033,12 +1066,16 @@ func (l *loggingT) output(s severity, buf *buffer, file string, line int, alsoTo
 }
 
 // timeoutFlush calls Flush and returns when it completes or after timeout
-// elapses, whichever happens first.  This is needed because the hooks invoked
+// elapses, whichever happens first. This is needed because the hooks invoked
 // by Flush may deadlock when glog.Fatal is called from a hook that holds
 // a lock.
+//
+// timeoutFlush 调用 Flush 并在完成或超时后返回（无论哪个先发生）。这是必须的，因为当上锁
+// 的钩子函数调用 glog.Fatal 时，Flush 调用钩子函数就可能会导致死锁。
 func timeoutFlush(timeout time.Duration) {
 	done := make(chan bool, 1)
 	go func() {
+		// 调用 logging.lockAndFlushAll()
 		Flush() // calls logging.lockAndFlushAll()
 		done <- true
 	}()
@@ -1050,8 +1087,12 @@ func timeoutFlush(timeout time.Duration) {
 }
 
 // stacks is a wrapper for runtime.Stack that attempts to recover the data for all goroutines.
+//
+// stacks 是 runtime.Stack 的封装，它试图恢复所有 goroutines 的数据。
 func stacks(all bool) []byte {
 	// We don't know how big the traces are, so grow a few times if they don't fit. Start large, though.
+	//
+	// 我们不知道跟踪的数据量有多大，所以 n 不够大会增长它几次。虽然开始很大。
 	n := 10000
 	if all {
 		n = 100000
@@ -1072,6 +1113,9 @@ func stacks(all bool) []byte {
 // of exiting on error. Used in testing and to guarantee we reach a required exit
 // for fatal logs. Instead, exit could be a function rather than a method but that
 // would make its use clumsier.
+//
+// logExitFunc 提供了一种简单的机制去覆盖错误退出的默认行为。它被用于测试和保证我们达到崩溃日志
+// 所需的出口。相反，退出可以是一个函数不是一个方法，但那会使它的使用变得更笨拙。
 var logExitFunc func(error)
 
 // exit is called if there is trouble creating or writing log files.
@@ -1084,6 +1128,8 @@ var logExitFunc func(error)
 func (l *loggingT) exit(err error) {
 	fmt.Fprintf(os.Stderr, "log: exiting because of error: %s\n", err)
 	// If logExitFunc is set, we do that instead of exiting.
+	//
+	// 如果设置了 logExitFunc，我们将会调用 logExitFunc 而不是退出。
 	if logExitFunc != nil {
 		logExitFunc(err)
 		return
@@ -1096,11 +1142,16 @@ func (l *loggingT) exit(err error) {
 // file's Sync method and providing a wrapper for the Write method that provides log
 // file rotation. There are conflicting methods, so the file cannot be embedded.
 // l.mu is held for all its methods.
+//
+// syncBuffer 将 bufio.Writer 连接到其底层文件，提供对文件访问的 Sync 方法，并为 Write 方法
+// 提供包装以进行日志文件的轮询。因为存在冲突的方法，所以文件不能被内嵌。
+// 它的所有方法 l.mu 需要上锁。
 type syncBuffer struct {
 	logger *loggingT
 	*bufio.Writer
-	file   *os.File
-	sev    severity
+	file *os.File
+	sev  severity
+	// 写入此文件的字节数
 	nbytes uint64 // The number of bytes written to this file
 }
 
@@ -1123,6 +1174,8 @@ func (sb *syncBuffer) Write(p []byte) (n int, err error) {
 }
 
 // rotateFile closes the syncBuffer's file and starts a new one.
+//
+// rotateFile 关闭 syncBuffer 的文件并启动一个新的文件。
 func (sb *syncBuffer) rotateFile(now time.Time) error {
 	if sb.file != nil {
 		sb.Flush()
@@ -1138,6 +1191,8 @@ func (sb *syncBuffer) rotateFile(now time.Time) error {
 	sb.Writer = bufio.NewWriterSize(sb.file, bufferSize)
 
 	// Write header.
+	//
+	// 写入日志头。
 	var buf bytes.Buffer
 	fmt.Fprintf(&buf, "Log file created at: %s\n", now.Format("2006/01/02 15:04:05"))
 	fmt.Fprintf(&buf, "Running on machine: %s\n", host)
@@ -1151,6 +1206,9 @@ func (sb *syncBuffer) rotateFile(now time.Time) error {
 // bufferSize sizes the buffer associated with each log file. It's large
 // so that log records can accumulate without the logging thread blocking
 // on disk I/O. The flushDaemon will block instead.
+//
+// bufferSize 调整与每个日志文件关联的缓冲区的大小。它很大，因此日志记录可以在没有日志
+// 记录线程阻塞在磁盘 I/O 上时积累。TSK: 相反，flushDaemon 将会阻塞。
 const bufferSize = 256 * 1024
 
 // createFiles creates all the log files for severity from sev down to infoLog.
@@ -1162,6 +1220,8 @@ func (l *loggingT) createFiles(sev severity) error {
 	now := time.Now()
 	// Files are created in decreasing severity order, so as soon as we find one
 	// has already been created, we can stop.
+	//
+	// 文件按照日志严重等级递增的顺序创建，因此一旦我们发现有的已经创建了，我们就可以停下来了。
 	for s := sev; s >= infoLog && l.file[s] == nil; s-- {
 		sb := &syncBuffer{
 			logger: l,
@@ -1218,11 +1278,14 @@ func (l *loggingT) flushAll() {
 
 // CopyStandardLogTo arranges for messages written to the Go "log" package's
 // default logs to also appear in the Google logs for the named and lower
-// severities.  Subsequent changes to the standard log's default output location
+// severities. Subsequent changes to the standard log's default output location
 // or format may break this behavior.
 //
 // Valid names are "INFO", "WARNING", "ERROR", and "FATAL".  If the name is not
 // recognized, CopyStandardLogTo panics.
+//
+// CopyStandardLogTo 写入到 Go "log" 包的默认日志消息也将出现在 Google 日志中，使用命名的
+// 方式和较低的日志严重等级。对标准日志的默认输出位置或格式的后续修改可能会破环此行为。
 func CopyStandardLogTo(name string) {
 	sev, ok := severityByName(name)
 	if !ok {
@@ -1230,16 +1293,23 @@ func CopyStandardLogTo(name string) {
 	}
 	// Set a log format that captures the user's file and line:
 	//   d.go:23: message
+	//
+	// 设置所获取的用户文件和行号的格式：
+	//   d.go:23: message
 	stdLog.SetFlags(stdLog.Lshortfile)
 	stdLog.SetOutput(logBridge(sev))
 }
 
 // logBridge provides the Write method that enables CopyStandardLogTo to connect
 // Go's standard logs to the logs provided by this package.
+//
+// logBridge 提供 Write 方法，使 CopyStandardLogTo 连接到 Go 标准包 log 并记录此包提供到日志。
 type logBridge severity
 
 // Write parses the standard logging line and passes its components to the
 // logger for severity(lb).
+//
+// Write 解析标志日志行号并将其组成传给 logger。
 func (lb logBridge) Write(b []byte) (n int, err error) {
 	var (
 		file = "???"
@@ -1247,6 +1317,8 @@ func (lb logBridge) Write(b []byte) (n int, err error) {
 		text string
 	)
 	// Split "d.go:23: message" into "d.go", "23", and "message".
+	//
+	// 将 "d.go:23: message" 分割成 "d.go"、"23" 和 "message"。
 	if parts := bytes.SplitN(b, []byte{':'}, 3); len(parts) != 3 || len(parts[0]) < 1 || len(parts[2]) < 1 {
 		text = fmt.Sprintf("bad log format: %s", b)
 	} else {
@@ -1260,6 +1332,9 @@ func (lb logBridge) Write(b []byte) (n int, err error) {
 	}
 	// printWithFileLine with alsoToStderr=true, so standard log messages
 	// always appear on standard error.
+	//
+	// 使用 printWithFileLine 时 alsoToStderr=true，因此标准日志消息总是出现在标
+	// 准错误中。
 	logging.printWithFileLine(severity(lb), file, line, true, text)
 	return len(b), nil
 }
@@ -1272,8 +1347,8 @@ func (lb logBridge) Write(b []byte) (n int, err error) {
 // l.mu is held.
 //
 // setV 在启用 vmodule 时，计算并储存给定 PC 的 V 等级。
-// 文件匹配模式采用文件的基本名称，去掉了 .go 后缀，并使用了 filepath.Match 函数，这比
-// C++ 中使用的 *? 匹配模式更加通用。
+// 文件模式匹配采用文件的基本名称，去掉了 .go 后缀，并使用了 filepath.Match 函数，这比
+// C++ 中使用的 *? 匹配更加通用。
 // l.mu 已上锁。
 func (l *loggingT) setV(pc uintptr) Level {
 	fn := runtime.FuncForPC(pc)
@@ -1325,11 +1400,10 @@ type Verbose bool
 //	if glog.V(2) { glog.Info("log this") }
 // 或者
 //	glog.V(2).Info("log this")
-// 第二种形式更短，但是如果没有开启 V 日志第一种形式的开销更小，因为它不会评测参数。
+// TSK: 第二种形式更短，但是如果没有开启 V 日志第一种形式的开销更小，因为它不会评测参数。
 //
 // 单个 V 的调用是否生成日志记录取决于 -v 和 -vmodule 标志的设置，两者都默认关闭。如果 V 的调用级别至少是
 // -v 的值或 -vmodule 源文件包含此调用，则 V 调用将记录。
-// TSK: V 日志
 func V(level Level) Verbose {
 	// This function tries hard to be cheap unless there's work to do.
 	// The fast path is two atomic loads and compares.
@@ -1339,7 +1413,7 @@ func V(level Level) Verbose {
 
 	// Here is a cheap but safe test to see if V logging is enabled globally.
 	//
-	// 这是一个低开销且安全的测试，可以查看是否全局开启了 V 日志。
+	// 这是一个低开销且安全的测试，用于查看是否全局开启了 V 日志。
 	if logging.verbosity.get() >= level {
 		return Verbose(true)
 	}
@@ -1347,14 +1421,18 @@ func V(level Level) Verbose {
 	// It's off globally but it vmodule may still be set.
 	// Here is another cheap but safe test to see if vmodule is enabled.
 	//
-	// 没用开启全局的，但是 vmodule 可能仍然被设置了。
-	// TSK:
+	// 它可能没有开启全局的，但是仍然可能设置了 vmodule。
+	// 这是另一个低开销且安全的测试，用于查看是否开启了 vmodule。
 	if atomic.LoadInt32(&logging.filterLength) > 0 {
 		// Now we need a proper lock to use the logging structure. The pcs field
 		// is shared so we must lock before accessing it. This is fairly expensive,
 		// but if V logging is enabled we're slow anyway.
+		//
+		// 现在我们需要一个适当的锁来使用日志记录结构。pcs 字段是共享的，所以我们在访问它之前必须
+		// 上锁。此时开销相当大，但是如果启用了 V 日志记录，我们无论如何都很慢。
 		logging.mu.Lock()
 		defer logging.mu.Unlock()
+		// TSK:
 		if runtime.Callers(2, logging.pcs[:]) == 0 {
 			return Verbose(false)
 		}
@@ -1369,6 +1447,9 @@ func V(level Level) Verbose {
 
 // Info is equivalent to the global Info function, guarded by the value of v.
 // See the documentation of V for usage.
+//
+// Info 等同于全局的 Info 功能，由 v 的值保护。
+// 有关用法，请参阅 V 的文档。
 func (v Verbose) Info(args ...interface{}) {
 	if v {
 		logging.print(infoLog, args...)
@@ -1377,6 +1458,9 @@ func (v Verbose) Info(args ...interface{}) {
 
 // Infoln is equivalent to the global Infoln function, guarded by the value of v.
 // See the documentation of V for usage.
+//
+// Infoln 等同于全局的 Infoln 功能，由 v 的值保护。
+// 有关用法，请参阅 V 的文档。
 func (v Verbose) Infoln(args ...interface{}) {
 	if v {
 		logging.println(infoLog, args...)
@@ -1385,6 +1469,9 @@ func (v Verbose) Infoln(args ...interface{}) {
 
 // Infof is equivalent to the global Infof function, guarded by the value of v.
 // See the documentation of V for usage.
+//
+// Infof 等同于全局的 Infof 功能，由 v 的值保护。
+// 有关用法，请参阅 V 的文档。
 func (v Verbose) Infof(format string, args ...interface{}) {
 	if v {
 		logging.printf(infoLog, format, args...)

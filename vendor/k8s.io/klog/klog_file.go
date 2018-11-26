@@ -86,6 +86,8 @@ func shortHostname(hostname string) string {
 
 // logName returns a new log file name containing tag, with start time t, and
 // the name for the symlink for tag.
+//
+// logName 返回一个新的包日志文件名，其含标签、开始时间 t 和用于标签符号链接的名字。
 func logName(tag string, t time.Time) (name, link string) {
 	name = fmt.Sprintf("%s.%s.%s.log.%s.%04d%02d%02d-%02d%02d%02d.%d",
 		program,
@@ -105,9 +107,13 @@ func logName(tag string, t time.Time) (name, link string) {
 var onceLogDirs sync.Once
 
 // create creates a new log file and returns the file and its filename, which
-// contains tag ("INFO", "FATAL", etc.) and t.  If the file is created
+// contains tag ("INFO", "FATAL", etc.) and t. If the file is created
 // successfully, create also attempts to update the symlink for that tag, ignoring
 // errors.
+//
+// create 创建一个新的日志文件并返回文件和它的文件名，文件名包含标签（例如，"INFO"、"FATAL"）和
+// 时间。如果文件成功创建，create 也会尝试更新标签的符号链接（忽略错误）。
+// IMP: 使用符号链接就可以不更新文件名变量就指向最新的文件。
 func create(tag string, t time.Time) (f *os.File, filename string, err error) {
 	if logging.logFile != "" {
 		f, err := os.Create(logging.logFile)
@@ -127,7 +133,9 @@ func create(tag string, t time.Time) (f *os.File, filename string, err error) {
 		f, err := os.Create(fname)
 		if err == nil {
 			symlink := filepath.Join(dir, link)
-			os.Remove(symlink)        // ignore err
+			// 忽略错误
+			os.Remove(symlink) // ignore err
+			// 忽略错误
 			os.Symlink(name, symlink) // ignore err
 			return f, fname, nil
 		}
