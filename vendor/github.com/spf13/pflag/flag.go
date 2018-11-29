@@ -135,6 +135,8 @@ type ParseErrorsWhitelist struct {
 type NormalizedName string
 
 // A FlagSet represents a set of defined flags.
+//
+// TS: 一个 FlagSet 代表一组定义的标志。
 type FlagSet struct {
 	// Usage is the function called when an error occurs while parsing flags.
 	// The field is a function (not a method) that may be changed to point to
@@ -211,6 +213,8 @@ func sortFlags(flags map[NormalizedName]*Flag) []*Flag {
 // look up the flag that will also be translated. So it would be possible to create
 // a flag named "getURL" and have it translated to "geturl".  A user could then pass
 // "--getUrl" which may also be translated to "geturl" and everything will work.
+//
+// TS: SetNormalizeFunc 允许你添加一个可以转换标志名的函数。
 func (f *FlagSet) SetNormalizeFunc(n func(f *FlagSet, name string) NormalizedName) {
 	f.normalizeNameFunc = n
 	f.sortedFormal = f.sortedFormal[:0]
@@ -1193,6 +1197,8 @@ func Parsed() bool {
 }
 
 // CommandLine is the default set of command-line flags, parsed from os.Args.
+//
+// CommandLine 是默认的命令行标志集，从 os.Args 解析。
 var CommandLine = NewFlagSet(os.Args[0], ExitOnError)
 
 // NewFlagSet returns a new, empty flag set with the specified name,

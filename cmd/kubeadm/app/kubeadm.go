@@ -38,8 +38,10 @@ func Run() error {
 	// We do not want these flags to show up in --help
 	// These MarkHidden calls must be after the lines above
 	//
-	// 我们不希望这些标志在 --help 中显示
-	//
+	// 我们不希望这些标志显示在 --help 中
+	// 这些 MarkHidden 调用必须在上面的调用之后
+	// IMP: 这些标志由 klog.InitFlags(nil) 添加，并由 pflag.CommandLine.SetNormalizeFunc(utilflag.WordSepNormalizeFunc)
+	// 进行处理。
 	pflag.CommandLine.MarkHidden("version")
 	pflag.CommandLine.MarkHidden("log-flush-frequency")
 	pflag.CommandLine.MarkHidden("alsologtostderr")

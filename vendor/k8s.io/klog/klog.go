@@ -152,8 +152,8 @@ type severity int32 // sync/atomic int32
 // A message written to a high-severity log file is also written to each
 // lower-severity log file.
 //
-// 这些常量是按严重性递增的顺序标示日志等级。
-// 每一个写入高严重性日志文件对消息也会被写入到每一个低严重性日志文件中。
+// 这些常量是按严重等级递增的顺序标示日志等级。
+// 一个写入到高严重等级日志文件的消息也会被写入到每一个低严重等级日志文件中。
 const (
 	infoLog severity = iota
 	warningLog
@@ -1006,6 +1006,7 @@ func (l *loggingT) output(s severity, buf *buffer, file string, line int, alsoTo
 				l.exit(err)
 			}
 		}
+		// IMP: fallthrough 高严重等级的日志也将写入到低严重等级的日志文件中。
 		switch s {
 		case fatalLog:
 			l.file[fatalLog].Write(data)
