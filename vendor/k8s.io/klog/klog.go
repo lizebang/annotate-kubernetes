@@ -68,7 +68,7 @@
 //			-vmodule=gopher*=3
 //		sets the V level to 3 in all Go files whose names begin "gopher".
 //
-// klog 包实现了类似 Google 内部 C++ INFO/ERROR/V 方案对日志。
+// klog 包实现了类似 Google 内部 C++ INFO/ERROR/V 的日志记录。
 // 它提供了函数 Info、Warning、Error、Fatel，以及诸如 Infof 的格式化版本。
 // 它还提供了由 -v 和 -vmodule=file=2 标志控制的 V-style 日志。
 //
@@ -232,7 +232,7 @@ func severityByName(s string) (severity, bool) {
 
 // OutputStats tracks the number of output lines and bytes written.
 //
-// OutputStats 追踪写入的行号和字节数。
+// OutputStats 追踪写入的行数和字节数。
 type OutputStats struct {
 	lines int64
 	bytes int64
@@ -415,6 +415,7 @@ func (m *moduleSpec) Set(value string) error {
 			return errors.New("negative value for vmodule level")
 		}
 		if v == 0 {
+			// v == 0 时，忽略。虽然没有错误，但是这是不必要的开销。
 			continue // Ignore. It's harmless but no point in paying the overhead.
 		}
 		// TODO: check syntax of filter?
@@ -827,7 +828,7 @@ func (l *loggingT) formatHeader(s severity, file string, line int) *buffer {
 	buf.tmp[14] = '.'
 	buf.nDigits(6, 15, now.Nanosecond()/1000, '0')
 	buf.tmp[21] = ' '
-	// TODO: 应该是 TID
+	// 应该是 TID
 	buf.nDigits(7, 22, pid, ' ') // TODO: should be TID
 	buf.tmp[29] = ' '
 	buf.Write(buf.tmp[:30])
@@ -900,7 +901,7 @@ func (l *loggingT) println(s severity, args ...interface{}) {
 }
 
 func (l *loggingT) print(s severity, args ...interface{}) {
-	// printDepth 的参数 depth 为 1，是因为 Info 等较 InfoDepth 多了 print 这一步调用。
+	// IMP: printDepth 的参数 depth 为 1，是因为 Info 等较 InfoDepth 多了 print 这一步调用。
 	l.printDepth(s, 1, args...)
 }
 
@@ -1433,7 +1434,7 @@ func V(level Level) Verbose {
 		// 上锁。此时开销相当大，但是如果启用了 V 日志记录，我们无论如何都很慢。
 		logging.mu.Lock()
 		defer logging.mu.Unlock()
-		// TSK:
+		// TSK: runtime.Callers 使用方法
 		if runtime.Callers(2, logging.pcs[:]) == 0 {
 			return Verbose(false)
 		}
