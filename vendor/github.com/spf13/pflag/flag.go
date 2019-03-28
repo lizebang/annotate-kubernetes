@@ -96,6 +96,83 @@ in a command-line interface. The methods of FlagSet are
 analogous to the top-level functions for the command-line
 flag set.
 */
+/*
+pflag 包是 Go flag 包的替代品，实现了 POSIX/GNU 风格的标志。
+
+pflag 与 POSIX 建议的命令行选项的 GNU 扩展兼容。请查看
+http://www.gnu.org/software/libc/manual/html_node/Argument-Syntax.html
+
+用法：
+
+pflag 是 Go 原生 flag 包的替代品。如果你导入 "pflag" 并命名为 "flag"，所有代码
+都应该继续运行没有变化。
+
+	import flag "github.com/spf13/pflag"
+
+但是有一个例外：如果你直接实例化 Flag 结构，则还需要设置一个字段 "Shorthand"。大多数
+代码从不直接实例化此结构，而是使用 String()、BoolVar()、Var() 等函数，因此不受影响。
+
+使用 flag.String()、Bool()、Int() 等定义标志。
+
+下面声明了一个 int 型标志 -flagname，储存在指针 ip 中，类型为 *int。
+	var ip = flag.Int("flagname", 1234, "help message for flagname")
+如果你想，你可以使用 Var() 函数将标志绑定到变量上。
+	var flagvar int
+	func init() {
+		flag.IntVar(&flagvar, "flagname", 1234, "help message for flagname")
+	}
+或者你可以创建满足 Value 接口的自定义标志（带指针接收者）并且通过下面的方法解析标志
+	flag.Var(&flagVal, "name", "help message for flagname")
+对于这样的标志，其默认值仅仅是变量到初始值。
+
+在定义好所有标志后，调用
+	flag.Parse()
+解析命令行到所定义的标志。
+
+然后可以直接使用标志。如果你使用标志本身，则它们都是指针。如果你将其绑定到变量上，则它们是
+值。
+	fmt.Println("ip has value ", *ip)
+	fmt.Println("flagvar has value ", flagvar)
+
+解析后，通过 flag.Args() 可以获取标志后的参数切片或者通过 flag.Arg(i) 获取指定的参数。
+参数的索引从 0 到 flag.NArg()-1。
+
+pflag 包还定义了一些 flag 包没有的新函数，它们为标志提供了单字母的速记标志。你可以通过在定义
+在 flag 包中的函数名后加上 'P' 来使用这些函数。
+	var ip = flag.IntP("flagname", "f", 1234, "help message")
+	var flagvar bool
+	func init() {
+		flag.BoolVarP("boolname", "b", true, "help message")
+	}
+	flag.VarP(&flagVar, "varname", "v", 1234, "help message")
+速记字母可以加上单破折号在命令行中使用。布尔型的速记标志可以和其他速记标志组合起来使用。
+
+命令行标志语法：
+	--flag    // 只允许 bool 型标志
+	--flag=x
+
+不同于 flag 包，选项前的单破折号的含义与双破折号有所不同。单破折号表明一系列速记标志。
+除了最后一个速记标志，其他速记标志必须是 bool 类型标志。
+	// boolean flags
+	-f
+	-abc
+	// non-boolean flags
+	-n 1234
+	-Ifile
+	// mixed
+	-abcs "hello"
+	-abcn1234
+
+标志在遇到终结符 "--" 后停止标志解析。不同于 flag 包，只要在终结符前标志间可以随意
+穿插标志。
+
+int 型标志可以接受 1234、0664、0x1234 以及负数。
+bool 型标志（在其长格式的情况下）可以接受 1、0、t、f、true、false、TRUE、FALSE、True、False。
+Duration 型标志可以接受对 time.ParseDuration 有效对任何输入。
+
+默认的命令行标志集由顶层函数控制。FlagSet 类型允许定义独立对标志集，例如在命令行接口
+中实现子命令。FlagSet 的方法类似于命令行标志集的顶层函数。
+*/
 package pflag
 
 import (
@@ -110,82 +187,127 @@ import (
 )
 
 // ErrHelp is the error returned if the flag -help is invoked but no such flag is defined.
+//
+// ErrHelp 在标志 -help 被调用但没有定义这样的标志时返回次错误。
 var ErrHelp = errors.New("pflag: help requested")
 
 // ErrorHandling defines how to handle flag parsing errors.
+//
+// ErrorHandling 定义了如何去处理标志解析时的错误。
 type ErrorHandling int
 
 const (
 	// ContinueOnError will return an err from Parse() if an error is found
+	//
+	// 如果发现错误，ContinueOnError 将返回 Parse() 产生的错误
 	ContinueOnError ErrorHandling = iota
 	// ExitOnError will call os.Exit(2) if an error is found when parsing
+	//
+	// 如果在解析时发现错误，ExitOnError 将调用 os.Exit(2)
 	ExitOnError
 	// PanicOnError will panic() if an error is found when parsing flags
+	//
+	// 如果在解析时发现错误，PanicOnError 将触发 panic()
 	PanicOnError
 )
 
 // ParseErrorsWhitelist defines the parsing errors that can be ignored
+//
+// ParseErrorsWhitelist 定义了可以被忽略的解析错误。
 type ParseErrorsWhitelist struct {
 	// UnknownFlags will ignore unknown flags errors and continue parsing rest of the flags
+	//
+	// UnknownFlags 将忽略未知的标志错误，并继续解析其余的标志。
 	UnknownFlags bool
 }
 
 // NormalizedName is a flag name that has been normalized according to rules
 // for the FlagSet (e.g. making '-' and '_' equivalent).
+//
+// NormalizedName 是根据 FlagSet 规则镜像规范化的标志名（例如，使 '-' 和 '_' 等价）。
 type NormalizedName string
 
 // A FlagSet represents a set of defined flags.
 //
-// TS: 一个 FlagSet 代表一组定义的标志。
+// 一个 FlagSet 代表一组定义的标志。
 type FlagSet struct {
 	// Usage is the function called when an error occurs while parsing flags.
 	// The field is a function (not a method) that may be changed to point to
 	// a custom error handler.
+	//
+	// Usage 会在解析标志出错时被调用。
+	// 此字段是一个函数（不是一个方法），可以被更改为一个自定义的错误处理函数。
 	Usage func()
 
 	// SortFlags is used to indicate, if user wants to have sorted flags in
 	// help/usage messages.
+	//
+	// SortFlags 如果用户想使 help/usage 消息中打印的标志被排序，可以使用 SortFlags
+	// 来指示。
 	SortFlags bool
 
 	// ParseErrorsWhitelist is used to configure a whitelist of errors
+	//
+	// ParseErrorsWhitelist 被用于配置错误的白名单。
 	ParseErrorsWhitelist ParseErrorsWhitelist
 
-	name              string
-	parsed            bool
-	actual            map[NormalizedName]*Flag
-	orderedActual     []*Flag
-	sortedActual      []*Flag
-	formal            map[NormalizedName]*Flag
-	orderedFormal     []*Flag
-	sortedFormal      []*Flag
-	shorthands        map[byte]*Flag
-	args              []string // arguments after flags
-	argsLenAtDash     int      // len(args) when a '--' was located when parsing, or -1 if no --
-	errorHandling     ErrorHandling
-	output            io.Writer // nil means stderr; use out() accessor
-	interspersed      bool      // allow interspersed option/non-option args
+	name          string
+	parsed        bool
+	actual        map[NormalizedName]*Flag
+	orderedActual []*Flag
+	sortedActual  []*Flag
+	// IMP: formal 是真正储存标志的结构
+	formal        map[NormalizedName]*Flag
+	orderedFormal []*Flag
+	sortedFormal  []*Flag
+	shorthands    map[byte]*Flag
+	// TSK: 非标志参数
+	args []string // arguments after flags
+	// 在解析时，当 '--' 被设置 argsLenAtDash 为 len(args)，或者如果没有 -- 为 -1，
+	argsLenAtDash int // len(args) when a '--' was located when parsing, or -1 if no --
+	errorHandling ErrorHandling
+	// nil 表示 stderr；使用 out() 存储器
+	output io.Writer // nil means stderr; use out() accessor
+	// 允许穿插的选项/非选项参数
+	interspersed      bool // allow interspersed option/non-option args
 	normalizeNameFunc func(f *FlagSet, name string) NormalizedName
 
 	addedGoFlagSets []*goflag.FlagSet
 }
 
 // A Flag represents the state of a flag.
+//
+// Flag 代表标志的状态。
 type Flag struct {
-	Name                string              // name as it appears on command line
-	Shorthand           string              // one-letter abbreviated flag
-	Usage               string              // help message
-	Value               Value               // value as set
-	DefValue            string              // default value (as text); for usage message
-	Changed             bool                // If the user set the value (or if left to default)
-	NoOptDefVal         string              // default value (as text); if the flag is on the command line without any options
-	Deprecated          string              // If this flag is deprecated, this string is the new or now thing to use
-	Hidden              bool                // used by cobra.Command to allow flags to be hidden from help/usage text
-	ShorthandDeprecated string              // If the shorthand of this flag is deprecated, this string is the new or now thing to use
-	Annotations         map[string][]string // used by cobra.Command bash autocomple code
+	// 命令行中显示的名称
+	Name string // name as it appears on command line
+	// 单字母的简写标志
+	Shorthand string // one-letter abbreviated flag
+	// 帮助信息
+	Usage string // help message
+	// 设定值
+	Value Value // value as set
+	// 默认值（文本）用于帮助信息
+	DefValue string // default value (as text); for usage message
+	// TSK:
+	Changed bool // If the user set the value (or if left to default)
+	// TSK: 默认值（文本）
+	NoOptDefVal string // default value (as text); if the flag is on the command line without any options
+	// TSK: 如果标志被弃用，
+	Deprecated string // If this flag is deprecated, this string is the new or now thing to use
+	// 被 cobra.Command 使用，允许
+	Hidden bool // used by cobra.Command to allow flags to be hidden from help/usage text
+	// TSK: 如果简写标志被弃用，
+	ShorthandDeprecated string // If the shorthand of this flag is deprecated, this string is the new or now thing to use
+	// 被 cobra.Command 用于 bash 自动完成
+	Annotations map[string][]string // used by cobra.Command bash autocomple code
 }
 
 // Value is the interface to the dynamic value stored in a flag.
 // (The default value is represented as a string.)
+//
+// Value 是存储在标志中的动态值的接口。
+// TSK:（默认值是）
 type Value interface {
 	String() string
 	Set(string) error
@@ -193,6 +315,8 @@ type Value interface {
 }
 
 // sortFlags returns the flags as a slice in lexicographical sorted order.
+//
+// sortFlags 返回字典序排列的标志切片。
 func sortFlags(flags map[NormalizedName]*Flag) []*Flag {
 	list := make(sort.StringSlice, len(flags))
 	i := 0
@@ -214,7 +338,10 @@ func sortFlags(flags map[NormalizedName]*Flag) []*Flag {
 // a flag named "getURL" and have it translated to "geturl".  A user could then pass
 // "--getUrl" which may also be translated to "geturl" and everything will work.
 //
-// TS: SetNormalizeFunc 允许你添加一个可以转换标志名的函数。
+// SetNormalizeFunc 允许你添加一个可以转换标志名的函数。已经添加到 FlagSet 中的 Flags 将会使用
+// 此函数转换，并且当任何东西尝试查找标志时也将会使用此函数转换。因此，可以创建一个名为 "getURL" 的
+// 标志，并将其翻译为 "geturl"。用户可以将参数传递给 "--getURL"，它也将被转换成 "geturl"，并且它
+// 们都能正常工作。
 func (f *FlagSet) SetNormalizeFunc(n func(f *FlagSet, name string) NormalizedName) {
 	f.normalizeNameFunc = n
 	f.sortedFormal = f.sortedFormal[:0]
@@ -235,6 +362,8 @@ func (f *FlagSet) SetNormalizeFunc(n func(f *FlagSet, name string) NormalizedNam
 
 // GetNormalizeFunc returns the previously set NormalizeFunc of a function which
 // does no translation, if not set previously.
+//
+// GetNormalizeFunc 返回事先设置的 NormalizeFunc 函数，如果事先没有设置，则不进行转换。
 func (f *FlagSet) GetNormalizeFunc() func(f *FlagSet, name string) NormalizedName {
 	if f.normalizeNameFunc != nil {
 		return f.normalizeNameFunc
@@ -337,6 +466,8 @@ func Visit(fn func(*Flag)) {
 }
 
 // Lookup returns the Flag structure of the named flag, returning nil if none exists.
+//
+// Lookup 返回 name 标志对应到 Flag 结构体，如果不存在返回 nil。
 func (f *FlagSet) Lookup(name string) *Flag {
 	return f.lookup(f.normalizeFlagName(name))
 }
@@ -358,6 +489,8 @@ func (f *FlagSet) ShorthandLookup(name string) *Flag {
 }
 
 // lookup returns the Flag structure of the named flag, returning nil if none exists.
+//
+// lookup 返回 name 标志对应到 Flag 结构体，如果不存在返回 nil。
 func (f *FlagSet) lookup(name NormalizedName) *Flag {
 	return f.formal[name]
 }
@@ -806,13 +939,19 @@ func Args() []string { return CommandLine.args }
 // caller could create a flag that turns a comma-separated string into a slice
 // of strings by giving the slice the methods of Value; in particular, Set would
 // decompose the comma-separated string into the slice.
+//
+// Var 使用指定的 name 和 usage 定义一个标准。
 func (f *FlagSet) Var(value Value, name string, usage string) {
 	f.VarP(value, name, "", usage)
 }
 
-// VarPF is like VarP, but returns the flag created
+// VarPF is like VarP, but returns the flag created.
+//
+// VarPF 和 VarP 类似，但是返回创建的 flag。
 func (f *FlagSet) VarPF(value Value, name, shorthand, usage string) *Flag {
 	// Remember the default value as a string; it won't change.
+	//
+	// 记录默认值，它将不会改变。
 	flag := &Flag{
 		Name:      name,
 		Shorthand: shorthand,
@@ -825,11 +964,15 @@ func (f *FlagSet) VarPF(value Value, name, shorthand, usage string) *Flag {
 }
 
 // VarP is like Var, but accepts a shorthand letter that can be used after a single dash.
+//
+// VarP 和 Var 类似，但是接收一个速记的字母，它可以用在单个破折号后。
 func (f *FlagSet) VarP(value Value, name, shorthand, usage string) {
 	f.VarPF(value, name, shorthand, usage)
 }
 
-// AddFlag will add the flag to the FlagSet
+// AddFlag will add the flag to the FlagSet.
+//
+// AddFlag 将添加标志到 FlagSet 中。
 func (f *FlagSet) AddFlag(flag *Flag) {
 	normalizedFlagName := f.normalizeFlagName(flag.Name)
 
@@ -837,6 +980,7 @@ func (f *FlagSet) AddFlag(flag *Flag) {
 	if alreadyThere {
 		msg := fmt.Sprintf("%s flag redefined: %s", f.name, flag.Name)
 		fmt.Fprintln(f.out(), msg)
+		// 只在使用重复的名称声明标志时触发 panic
 		panic(msg) // Happens only if flags are declared with identical names
 	}
 	if f.formal == nil {
@@ -1108,6 +1252,9 @@ func (f *FlagSet) parseArgs(args []string, fn parseFunc) (err error) {
 // include the command name.  Must be called after all flags in the FlagSet
 // are defined and before flags are accessed by the program.
 // The return value will be ErrHelp if -help was set but not defined.
+//
+// Parse 从参数列表中解析标志定义，参数列表中不应该包含命令名称。必须在所有标志被定义后，
+// 以及标志被程序访问前被调用。如果设置了 -help 但未定义，则返回值将为 ErrHelp。
 func (f *FlagSet) Parse(arguments []string) error {
 	if f.addedGoFlagSets != nil {
 		for _, goFlagSet := range f.addedGoFlagSets {
@@ -1173,8 +1320,13 @@ func (f *FlagSet) Parsed() bool {
 
 // Parse parses the command-line flags from os.Args[1:].  Must be called
 // after all flags are defined and before flags are accessed by the program.
+//
+// Parse 从 os.Args[1:] 中解析命令行标志。Parse 必须在所有标志被定义后，以及标志被程序
+// 访问前被调用。
 func Parse() {
 	// Ignore errors; CommandLine is set for ExitOnError.
+	//
+	// 忽略错误；CommandLine 被是在为 ExitOnError。
 	CommandLine.Parse(os.Args[1:])
 }
 
@@ -1203,6 +1355,8 @@ var CommandLine = NewFlagSet(os.Args[0], ExitOnError)
 
 // NewFlagSet returns a new, empty flag set with the specified name,
 // error handling property and SortFlags set to true.
+//
+// NewFlagSet 返回一个指定名称的新的空标志集，错误处理属性和 SortFlags 被设置为 true。
 func NewFlagSet(name string, errorHandling ErrorHandling) *FlagSet {
 	f := &FlagSet{
 		name:          name,

@@ -679,7 +679,7 @@ var logging loggingT
 func (l *loggingT) setVState(verbosity Level, filter []modulePat, setFilter bool) {
 	// Turn verbosity off so V will not fire while we are in transition.
 	//
-	// 关闭详细等级以便在过渡期不触发 V。
+	// 关闭详细等级以便在过渡期不调用 V()。
 	logging.verbosity.set(0)
 	// Ditto for filter length.
 	//
@@ -699,7 +699,6 @@ func (l *loggingT) setVState(verbosity Level, filter []modulePat, setFilter bool
 	//
 	// 现在事情是一致的，所以启用过滤器和消息记录。
 	// 以相反的顺序启用它们。
-	// TSK: 为什么以相反的顺序启用。
 	atomic.StoreInt32(&logging.filterLength, int32(len(filter)))
 	logging.verbosity.set(verbosity)
 }
@@ -1435,6 +1434,10 @@ func V(level Level) Verbose {
 		logging.mu.Lock()
 		defer logging.mu.Unlock()
 		// TSK: runtime.Callers 使用方法
+		// IMP: logging.pcs[:] 将数组转换成切片
+		// IMP: runtime.Callers(2, logging.pcs[:]) 只会返回 1。返回 1 时，logging.pcs
+		// 中存的是调用 V() 的函数的程序计数器。返回 0 ？出 BUG 了吧，没有地方调用 V() 但是
+		// Callers 被调用。
 		if runtime.Callers(2, logging.pcs[:]) == 0 {
 			return Verbose(false)
 		}

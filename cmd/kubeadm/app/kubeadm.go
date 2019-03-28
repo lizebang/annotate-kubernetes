@@ -29,7 +29,7 @@ import (
 
 // Run creates and executes new kubeadm command
 //
-// TS: Run 创建并执行新的 kubeadm 命令
+// Run 创建并执行新的 kubeadm 命令
 func Run() error {
 	pflag.CommandLine.SetNormalizeFunc(utilflag.WordSepNormalizeFunc)
 	pflag.CommandLine.AddGoFlagSet(flag.CommandLine)

@@ -82,6 +82,8 @@ func PFlagFromGoFlag(goflag *goflag.Flag) *Flag {
 }
 
 // AddGoFlag will add the given *flag.Flag to the pflag.FlagSet
+//
+// AddGoFlag 将给定顶 *flag.Flag 添加到 pflag.FlagSet 中
 func (f *FlagSet) AddGoFlag(goflag *goflag.Flag) {
 	if f.Lookup(goflag.Name) != nil {
 		return
@@ -91,6 +93,8 @@ func (f *FlagSet) AddGoFlag(goflag *goflag.Flag) {
 }
 
 // AddGoFlagSet will add the given *flag.FlagSet to the pflag.FlagSet
+//
+// AddGoFlagSet 将给定的 *flag.FlagSet 添加到 pflag.FlagSet 中
 func (f *FlagSet) AddGoFlagSet(newSet *goflag.FlagSet) {
 	if newSet == nil {
 		return

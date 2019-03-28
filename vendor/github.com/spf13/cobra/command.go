@@ -156,16 +156,28 @@ type Command struct {
 	// args is actual args parsed from flags.
 	args []string
 	// flagErrorBuf contains all error messages from pflag.
+	//
+	// flagErrorBuf 包含所有来自 pflag 的错误信息。
 	flagErrorBuf *bytes.Buffer
 	// flags is full set of flags.
+	//
+	// flags 是完整的一组标志。
 	flags *flag.FlagSet
 	// pflags contains persistent flags.
+	//
+	// pflags 包含持久性标志。
 	pflags *flag.FlagSet
 	// lflags contains local flags.
+	//
+	// lflags 包含本地的标志。
 	lflags *flag.FlagSet
 	// iflags contains inherited flags.
+	//
+	// iflags 包含继承的标志。
 	iflags *flag.FlagSet
 	// parentsPflags is all persistent flags of cmd's parents.
+	//
+	// parentsPflags 父命令的所有持久性标志。
 	parentsPflags *flag.FlagSet
 	// globNormFunc is the global normalization function
 	// that we can use on every pflag set and children commands
@@ -1131,6 +1143,8 @@ func (c *Command) DebugFlags() {
 }
 
 // Name returns the command's name: the first word in the use line.
+//
+// Name 返回命令的名称：使用行中的第一个单词。
 func (c *Command) Name() string {
 	name := c.Use
 	i := strings.Index(name, " ")
@@ -1372,6 +1386,8 @@ func (c *Command) PersistentFlags() *flag.FlagSet {
 }
 
 // ResetFlags deletes all flags from command.
+//
+// ResetFlags 删除命令中的所有标志。
 func (c *Command) ResetFlags() {
 	c.flagErrorBuf = new(bytes.Buffer)
 	c.flagErrorBuf.Reset()
