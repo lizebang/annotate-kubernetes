@@ -31,53 +31,87 @@ import (
 // E.g.  'go run ...' - 'run' is the command. Cobra requires
 // you to define the usage and description as part of your command
 // definition to ensure usability.
+//
+// Command 只是一个命令，适用于你的应用。
+// 例如，`go run ...` -- `run` 就是命令。
+// Cobra 要求你定义 usage 和 description 作为你命令定义的一部分，以保证其可用性。
 type Command struct {
 	// Use is the one-line usage message.
+	//
+	// Use 是单行使用信息。
 	Use string
 
 	// Aliases is an array of aliases that can be used instead of the first word in Use.
+	//
+	// TSK: Aliases 是一组别名，会作为 Use 的第一个词。
 	Aliases []string
 
 	// SuggestFor is an array of command names for which this command will be suggested -
 	// similar to aliases but only suggests.
+	//
+	// SuggestFor 是一组命令，用于给出建议 -- 和 aliases 相同，但是只用于建议。
 	SuggestFor []string
 
 	// Short is the short description shown in the 'help' output.
+	//
+	// Short 是简短的描述，它将在 'help' 时输出。
 	Short string
 
 	// Long is the long message shown in the 'help <this-command>' output.
+	//
+	// Long 是详细的信息，它将在 'help <this-command>' 时输出。
 	Long string
 
 	// Example is examples of how to use the command.
+	//
+	// Example 是使用此命令的示例。
 	Example string
 
 	// ValidArgs is list of all valid non-flag arguments that are accepted in bash completions
+	//
+	// ValidArgs 是全部有效非标志参数的列表，它也被用于 bash 补全。
 	ValidArgs []string
 
 	// Expected arguments
+	//
+	// 期待的参数
 	Args PositionalArgs
 
 	// ArgAliases is List of aliases for ValidArgs.
 	// These are not suggested to the user in the bash completion,
 	// but accepted if entered manually.
+	//
+	// ArgAliases 是 ValidArgs 的别名列表。
+	// 它们不会用于 bash 补全建议，但是手动输入则被接受。
 	ArgAliases []string
 
 	// BashCompletionFunction is custom functions used by the bash autocompletion generator.
+	//
+	// BashCompletionFunction 是被用于 bash 补全脚本生成工具的自定义函数
 	BashCompletionFunction string
 
 	// Deprecated defines, if this command is deprecated and should print this string when used.
+	//
+	// Deprecated 定义，如果此命令被弃用并且应该在使用时输出此信息。
 	Deprecated string
 
 	// Hidden defines, if this command is hidden and should NOT show up in the list of available commands.
+	//
+	// Hidden 定义，如果此命令被隐藏并且不应该出现在可用命令列表中。
 	Hidden bool
 
 	// Annotations are key/value pairs that can be used by applications to identify or
 	// group commands.
+	//
+	// Annotations 是 key/value 键值对，它可以被应用用于标志或组织命令。
 	Annotations map[string]string
 
 	// Version defines the version for this command. If this value is non-empty and the command does not
 	// define a "version" flag, a "version" boolean flag will be added to the command and, if specified,
 	// will print content of the "Version" variable.
+	//
+	// Version 定义此命令的版本。如果此值非空并且此命令没有定义 "version" 标志时，一个名为 "version" 的布尔标志将被添加
+	// 到此命令中，如果已指定，将打印 "Version" 变量的内容。
 	Version string
 
 	// The *Run functions are executed in the following order:
@@ -88,28 +122,58 @@ type Command struct {
 	//   * PersistentPostRun()
 	// All functions get the same args, the arguments after the command name.
 	//
+	// 以 Run 结尾的函数将按照下列顺序执行：
+	//   * PersistentPreRun()
+	//   * PreRun()
+	//   * Run()
+	//   * PostRun()
+	//   * PersistentPostRun()
+	// 所有函数获取到相同的参数，为命令名后的参数。
+	//
 	// PersistentPreRun: children of this command will inherit and execute.
+	//
+	// PersistentPreRun: 此命令的子命令将继承并执行此函数。
 	PersistentPreRun func(cmd *Command, args []string)
 	// PersistentPreRunE: PersistentPreRun but returns an error.
+	//
+	// PersistentPreRunE: 和 PersistentPreRun 相同，但是返回一个错误。
 	PersistentPreRunE func(cmd *Command, args []string) error
 	// PreRun: children of this command will not inherit.
+	//
+	// PreRun: 此命令的子命令将不会继承并此函数。
 	PreRun func(cmd *Command, args []string)
 	// PreRunE: PreRun but returns an error.
+	//
+	// PreRunE: 和 PreRun 相同，但是返回一个错误。
 	PreRunE func(cmd *Command, args []string) error
 	// Run: Typically the actual work function. Most commands will only implement this.
+	//
+	// Run: 通常是实际工作的函数。大多数命令会只实现此函数。
 	Run func(cmd *Command, args []string)
 	// RunE: Run but returns an error.
+	//
+	// RunE: 和 Run 相同，但是返回一个错误。
 	RunE func(cmd *Command, args []string) error
 	// PostRun: run after the Run command.
+	//
+	// PostRun: 在 Run 函数后运行。
 	PostRun func(cmd *Command, args []string)
 	// PostRunE: PostRun but returns an error.
+	//
+	// PostRunE: 和 PostRun 相同，但是返回一个错误。
 	PostRunE func(cmd *Command, args []string) error
 	// PersistentPostRun: children of this command will inherit and execute after PostRun.
+	//
+	// PersistentPostRun: 此命令的子命令将继承并在 PostRun 后执行此函数。
 	PersistentPostRun func(cmd *Command, args []string)
 	// PersistentPostRunE: PersistentPostRun but returns an error.
+	//
+	// PersistentPostRunE: 和 PersistentPostRun 相同，但是返回一个错误。
 	PersistentPostRunE func(cmd *Command, args []string) error
 
 	// SilenceErrors is an option to quiet errors down stream.
+	//
+	// SilenceErrors 是一个使错误不输出的选项。
 	SilenceErrors bool
 
 	// SilenceUsage is an option to silence usage when an error occurs.
@@ -1144,7 +1208,7 @@ func (c *Command) DebugFlags() {
 
 // Name returns the command's name: the first word in the use line.
 //
-// Name 返回命令的名称：使用行中的第一个单词。
+// Name 返回命令的名称：Use 中的第一个单词。
 func (c *Command) Name() string {
 	name := c.Use
 	i := strings.Index(name, " ")
